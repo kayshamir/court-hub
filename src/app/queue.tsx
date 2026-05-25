@@ -1,6 +1,7 @@
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { SymbolView } from "expo-symbols";
+import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -224,7 +225,18 @@ export default function QueueScreen() {
               </View>
             </View>
 
-            <Pressable className="bg-primary py-4 rounded-full items-center justify-center active:scale-[0.98] transition-transform">
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: "/score",
+                  params: {
+                    teamA: JSON.stringify(nextMatch.teamA),
+                    teamB: JSON.stringify(nextMatch.teamB),
+                  },
+                })
+              }
+              className="bg-primary py-4 rounded-full items-center justify-center active:scale-[0.98] transition-transform"
+            >
               <Text className="text-white text-xs font-extrabold uppercase tracking-widest">
                 Start Match
               </Text>
