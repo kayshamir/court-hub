@@ -1,15 +1,14 @@
 import * as schema from "@/db/schema";
-import { courts, matches, players } from "@/db/schema";
+import { courts, matches, players, DBPlayer } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/expo-sqlite";
+import { SkillLevel } from "@/types/player";
 import * as SQLite from "expo-sqlite";
 
 export const expoDb = SQLite.openDatabaseSync("courthub.db");
 export const db = drizzle(expoDb, { schema });
 
-// Players
-
-export async function getPlayers() {
+export async function getPlayers(): Promise<DBPlayer[]> {
   return db
     .select()
     .from(players)
@@ -24,6 +23,7 @@ export async function addPlayer(
   losses: number,
   rate: string,
   isTopPerformer: boolean,
+  level: SkillLevel,
 ) {
   await db.insert(players).values({
     name,
@@ -33,7 +33,21 @@ export async function addPlayer(
     losses,
     rate,
     isTopPerformer: isTopPerformer ? 1 : 0,
+    level,
   });
+}
+
+export async function updatePlayerLevel(id: number, level: SkillLevel) {
+  await db
+    .update(players)
+    .set({ level })
+    .where(eq(players.id, id));
+}
+
+export async function deletePlayer(id: number) {
+  await db
+    .delete(players)
+    .where(eq(players.id, id));
 }
 
 export async function updatePlayerStats(name: string, won: boolean) {
@@ -70,7 +84,6 @@ export async function clearPlayers() {
 }
 
 // Matches
-
 export async function addMatch(
   teamA: string[],
   teamB: string[],

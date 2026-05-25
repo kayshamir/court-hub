@@ -9,6 +9,7 @@ export const players = sqliteTable("players", {
   losses: integer("losses").default(0).notNull(),
   rate: text("rate"),
   isTopPerformer: integer("isTopPerformer").default(0).notNull(),
+  level: text("level").default("Beginner").notNull(),
 });
 
 export const matches = sqliteTable("matches", {

@@ -1,17 +1,15 @@
-// DBPlayer and DBMatch have been replaced by Drizzle inferred types in src/db/schema.ts
-// Use: import { DBPlayer, DBMatch } from '@/db/schema';
-
+export type SkillLevel = "Beginner" | "Intermediate" | "Advanced";
 export interface Player {
   id: number;
   name: string;
   rank: string;
-  form: ('W' | 'L')[];
+  form: ("W" | "L")[];
   wins: number;
   losses: number;
   rate: string;
   isTopPerformer: boolean;
+  level: SkillLevel;
 }
-
 export interface Match {
   id: number;
   teamA: string[];

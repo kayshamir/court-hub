@@ -1,6 +1,11 @@
-import { Player } from '@/types/player';
-import { DBPlayer } from '@/db/schema';
-import { addPlayer, getPlayers } from './database';
+import { DBPlayer } from "@/db/schema";
+import { Player, SkillLevel } from "@/types/player";
+import {
+  addPlayer,
+  deletePlayer,
+  getPlayers,
+  updatePlayerLevel,
+} from "./database";
 
 export async function initializePlayersDB() {
   // Migrations are now handled by useMigrations in _layout.tsx
@@ -10,7 +15,7 @@ export async function fetchRankedPlayersList(): Promise<Player[]> {
   const dbPlayers: DBPlayer[] = await getPlayers();
 
   const mappedPlayers: Player[] = dbPlayers.map((p) => {
-    let parsedForm: ('W' | 'L')[] = [];
+    let parsedForm: ("W" | "L")[] = [];
     try {
       parsedForm = JSON.parse(p.form);
     } catch {
@@ -23,14 +28,20 @@ export async function fetchRankedPlayersList(): Promise<Player[]> {
       form: parsedForm,
       wins: p.wins ?? 0,
       losses: p.losses ?? 0,
-      rate: p.rate ?? '0.0%',
+      rate: p.rate ?? "0.0%",
       isTopPerformer: p.isTopPerformer === 1,
+      level: (p.level as SkillLevel) || "Beginner",
     };
   });
 
+  const getWinRateValue = (player: Player) => parseFloat(player.rate) || 0;
+
   mappedPlayers.sort((a, b) => {
+    const rateA = getWinRateValue(a);
+    const rateB = getWinRateValue(b);
+    if (rateB !== rateA) return rateB - rateA;
     if (b.wins !== a.wins) return b.wins - a.wins;
-    return parseFloat(b.rate) - parseFloat(a.rate);
+    return a.name.localeCompare(b.name);
   });
 
   return mappedPlayers.map((p, idx) => ({
@@ -40,26 +51,31 @@ export async function fetchRankedPlayersList(): Promise<Player[]> {
   }));
 }
 
-export async function registerPlayer(
-  name: string,
-  initialWins: string,
-  initialLosses: string
+export async function registerPlayer(name: string, level: SkillLevel) {
+  const winsNum = 0;
+  const lossesNum = 0;
+  const rateVal = "0.0%";
+  const newForm: ("W" | "L")[] = [];
+
+  await addPlayer(
+    name,
+    "00",
+    newForm,
+    winsNum,
+    lossesNum,
+    rateVal,
+    false,
+    level,
+  );
+}
+
+export async function removePlayer(playerId: number) {
+  await deletePlayer(playerId);
+}
+
+export async function changePlayerSkillLevel(
+  playerId: number,
+  level: SkillLevel,
 ) {
-  const winsNum = parseInt(initialWins) || 0;
-  const lossesNum = parseInt(initialLosses) || 0;
-  const total = winsNum + lossesNum;
-  const rateVal =
-    total > 0 ? `${((winsNum / total) * 100).toFixed(1)}%` : '0.0%';
-
-  const newForm: ('W' | 'L')[] = [];
-  for (let i = 0; i < 5; i++) {
-    if (i < winsNum) {
-      newForm.push('W');
-    } else {
-      newForm.push('L');
-    }
-  }
-  newForm.sort(() => Math.random() - 0.5);
-
-  await addPlayer(name, '00', newForm, winsNum, lossesNum, rateVal, false);
+  await updatePlayerLevel(playerId, level);
 }
