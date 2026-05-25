@@ -75,7 +75,10 @@ export default function CreateCourtScreen() {
       >
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingTop: Spacing.four, paddingBottom: safeAreaInsets.bottom + Spacing.six }}
+          contentContainerStyle={{
+            paddingTop: Spacing.four,
+            paddingBottom: safeAreaInsets.bottom + Spacing.six,
+          }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           // iOS: native API — automatically scrolls focused input above keyboard
@@ -101,7 +104,6 @@ export default function CreateCourtScreen() {
               <SportTypeSelector selected={sportType} onSelect={setSportType} />
               <MatchTypeToggle value={matchType} onChange={setMatchType} />
             </View>
-
 
             {/* Action Buttons moved into scroll flow */}
             <View className="flex-row gap-3 pt-2">
