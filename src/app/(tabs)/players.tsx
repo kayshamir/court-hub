@@ -1,11 +1,3 @@
-import { BottomTabInset, Spacing } from "@/constants/theme";
-import { useTheme } from "@/hooks/use-theme";
-import {
-  fetchRankedPlayersList,
-  initializePlayersDB,
-  registerPlayer,
-} from "@/services/player-service";
-import { Player } from "@/types/player";
 import { SymbolView } from "expo-symbols";
 import React from "react";
 import {
@@ -15,12 +7,22 @@ import {
   Modal,
   Platform,
   Pressable,
+  TextInput as RNTextInput,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Button } from "../components/ui/button";
+import { TextInput } from "../components/ui/text-input";
+import { BottomTabInset, Spacing } from "../constants/theme";
+import { useTheme } from "../hooks/use-theme";
+import {
+  fetchRankedPlayersList,
+  initializePlayersDB,
+  registerPlayer,
+} from "../services/player-service";
+import { Player } from "../types/player";
 
 export default function PlayersScreen() {
   const safeAreaInsets = useSafeAreaInsets();
@@ -34,7 +36,6 @@ export default function PlayersScreen() {
   const [initialLosses, setInitialLosses] = React.useState("0");
   const [players, setPlayers] = React.useState<Player[]>([]);
 
-  // Initialize DB and fetch players
   const loadPlayers = async () => {
     try {
       await initializePlayersDB();
@@ -105,26 +106,30 @@ export default function PlayersScreen() {
                 Rankings & Statistics
               </Text>
             </View>
-            <Pressable
+            <Button
               onPress={() => setIsAddModalVisible(true)}
-              className="bg-primary px-4 py-2.5 rounded-full flex-row items-center gap-1.5 active:scale-95 transition-transform"
+              className="px-4 py-3 flex-row items-center gap-1.5 active:scale-95"
+              small
             >
-              <SymbolView name="person.badge.plus" tintColor="#fff" size={14} />
-              <Text className="text-white text-xs font-bold uppercase tracking-wider">
+              <SymbolView name="person.badge.plus" tintColor="#fff" size={18} />
+              <Text className="text-white text-xs font-extrabold tracking-wider">
                 Add Player
               </Text>
-            </Pressable>
+            </Button>
           </View>
 
           {/* Search Input */}
-          <View className="relative flex-row items-center bg-secondary/50 rounded-2xl border border-black/5 px-4 py-3">
+          <View className="relative flex-row items-center bg-secondary rounded-2xl px-4 py-3">
             <SymbolView
               name="magnifyingglass"
-              tintColor={theme.mutedForeground}
+              tintColor={theme.primary}
               size={16}
             />
-            <TextInput
-              className="flex-1 ml-3 text-sm text-foreground font-medium outline-none placeholder:text-muted-foreground"
+            <RNTextInput
+              className="flex-1 ml-3 text-sm text-foreground font-medium outline-none placeholder:text-muted-foreground py-0 h-6"
+              style={{
+                paddingBottom: 3,
+              }}
               placeholder="Search player stats..."
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -154,12 +159,11 @@ export default function PlayersScreen() {
             </View>
           ) : (
             <>
-              {/* Featured Top Performer Banner */}
               {topPerformer && (
                 <View className="bg-secondary rounded-3xl p-5 border border-black/5 flex-row justify-between items-center relative overflow-hidden">
                   <View className="z-10 flex-1">
                     <View className="flex-row items-center gap-2 mb-2">
-                      <View className="bg-primary px-2.5 py-0.5 rounded-full flex-row items-center gap-1">
+                      <View className="bg-primary px-2.5 py-2 rounded-full flex-row items-center gap-1">
                         <SymbolView
                           name="star.fill"
                           tintColor="#fff"
@@ -329,57 +333,34 @@ export default function PlayersScreen() {
               </View>
 
               <View className="gap-4">
-                <View className="gap-2">
-                  <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    Player Name
-                  </Text>
-                  <TextInput
-                    className="bg-secondary rounded-2xl border border-black/5 px-4 py-3 text-sm text-foreground font-medium outline-none"
-                    placeholder="Enter full name"
-                    placeholderTextColor={theme.mutedForeground}
-                    value={newPlayerName}
-                    onChangeText={setNewPlayerName}
-                  />
-                </View>
+                <TextInput
+                  label="Player Name"
+                  placeholder="Enter full name"
+                  value={newPlayerName}
+                  onChangeText={setNewPlayerName}
+                />
 
                 <View className="flex-row gap-4">
-                  <View className="flex-1 gap-2">
-                    <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      Initial Wins
-                    </Text>
-                    <TextInput
-                      className="bg-secondary rounded-2xl border border-black/5 px-4 py-3 text-sm text-foreground font-medium outline-none"
-                      placeholder="0"
-                      placeholderTextColor={theme.mutedForeground}
-                      value={initialWins}
-                      onChangeText={setInitialWins}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View className="flex-1 gap-2">
-                    <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      Initial Losses
-                    </Text>
-                    <TextInput
-                      className="bg-secondary rounded-2xl border border-black/5 px-4 py-3 text-sm text-foreground font-medium outline-none"
-                      placeholder="0"
-                      placeholderTextColor={theme.mutedForeground}
-                      value={initialLosses}
-                      onChangeText={setInitialLosses}
-                      keyboardType="numeric"
-                    />
-                  </View>
+                  <TextInput
+                    label="Initial Wins"
+                    placeholder="0"
+                    value={initialWins}
+                    onChangeText={setInitialWins}
+                    keyboardType="numeric"
+                    containerClassName="flex-1"
+                  />
+                  <TextInput
+                    label="Initial Losses"
+                    placeholder="0"
+                    value={initialLosses}
+                    onChangeText={setInitialLosses}
+                    keyboardType="numeric"
+                    containerClassName="flex-1"
+                  />
                 </View>
               </View>
 
-              <Pressable
-                onPress={handleAddPlayer}
-                className="bg-primary py-3.5 rounded-full items-center justify-center active:scale-[0.98] transition-transform"
-              >
-                <Text className="text-white text-sm font-extrabold uppercase tracking-widest">
-                  Create Profile
-                </Text>
-              </Pressable>
+              <Button onPress={handleAddPlayer} label="Create Profile" />
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
