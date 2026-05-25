@@ -5,16 +5,15 @@ import {
 } from "@react-navigation/native";
 import { useMigrations } from "drizzle-orm/expo-sqlite/migrator";
 import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
-import { Slot } from "expo-router";
 import { Text, useColorScheme, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import "../global.css";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
-import { db, expoDb } from "@/services/database";
-import migrations from "../../drizzle/migrations";
-
-export default function RootLayout() {
+import AppTabs from "@/components/app-tabs";
+//d
+export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { success, error } = useMigrations(db, migrations);
 
@@ -39,9 +38,11 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <Slot />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <AnimatedSplashOverlay />
+        <AppTabs />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
