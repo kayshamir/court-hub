@@ -133,7 +133,7 @@ export default function PlayersScreen() {
               placeholder="Search player stats..."
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholderTextColor={theme.mutedForeground}
+              placeholderTextColor={theme.textSecondary}
             />
           </View>
 
@@ -145,7 +145,7 @@ export default function PlayersScreen() {
             <View className="bg-secondary/40 rounded-3xl p-6 border border-dashed border-black/10 items-center justify-center py-12">
               <SymbolView
                 name="person.3.fill"
-                tintColor={theme.mutedForeground}
+                tintColor={theme.textSecondary}
                 size={36}
                 className="opacity-50"
               />

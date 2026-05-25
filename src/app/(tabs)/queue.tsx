@@ -1,27 +1,38 @@
 import { BottomTabInset, Spacing } from "@/constants/theme";
+import { DBCourt } from "@/db/schema";
 import { useTheme } from "@/hooks/use-theme";
-import { router } from "expo-router";
+import { getCourts } from "@/services/database";
+import {
+  INITIAL_POOL,
+  MOCK_COURTS,
+  getCourtMatch,
+  reorderWaitingPool,
+  shuffleWaitingPool,
+} from "@/services/queue-service";
+import { Team } from "@/types/queue";
 import { SymbolView } from "expo-symbols";
 import React from "react";
-import { Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { GestureDetector, Gesture } from "react-native-gesture-handler";
+import {
+  Dimensions,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  useDerivedValue,
-  withSpring,
   runOnJS,
   SharedValue,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+  withSpring,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface DraggableQueueItemProps {
-  item: {
-    id: number;
-    players: string[];
-    position: number;
-    status: string;
-  };
+  item: Team;
   initialIndex: number;
   totalItems: number;
   spacing: number;
@@ -57,15 +68,11 @@ function DraggableQueueItem({
     })
     .onUpdate((event) => {
       translateY.value = event.translationY;
-
-      // Calculate hover index
       const currentY = initialIndex * spacing + event.translationY;
       const hoverIndex = Math.max(
         0,
-        Math.min(totalItems - 1, Math.round(currentY / spacing))
+        Math.min(totalItems - 1, Math.round(currentY / spacing)),
       );
-
-      // Reorder on the fly
       const currentOrderIndex = order.value.indexOf(item.id);
       if (hoverIndex !== currentOrderIndex) {
         const newOrder = [...order.value];
@@ -78,7 +85,6 @@ function DraggableQueueItem({
       isDragging.value = false;
       const targetIndex = order.value.indexOf(item.id);
       const finalTranslateY = (targetIndex - initialIndex) * spacing;
-
       translateY.value = withSpring(
         finalTranslateY,
         { damping: 25, stiffness: 180, mass: 0.8 },
@@ -88,59 +94,51 @@ function DraggableQueueItem({
             runOnJS(onDragEnd)(order.value);
             translateY.value = 0;
           }
-        }
+        },
       );
     });
 
   const targetY = useDerivedValue(() => {
     const targetIndex = order.value.indexOf(item.id);
-    if (activeId.value === item.id) {
+    if (activeId.value === item.id)
       return initialIndex * spacing + translateY.value;
-    }
-    return withSpring(targetIndex * spacing, { damping: 25, stiffness: 180, mass: 0.8 });
+    return withSpring(targetIndex * spacing, {
+      damping: 25,
+      stiffness: 180,
+      mass: 0.8,
+    });
   });
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ translateY: targetY.value }],
-      position: "absolute",
-      left: 0,
-      right: 0,
-      top: 0,
-      zIndex: activeId.value === item.id ? 999 : 1,
-      elevation: activeId.value === item.id ? 5 : 0,
-      opacity: activeId.value === item.id ? 0.9 : 1,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: activeId.value === item.id ? 4 : 0 },
-      shadowOpacity: activeId.value === item.id ? 0.15 : 0,
-      shadowRadius: activeId.value === item.id ? 8 : 0,
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: targetY.value }],
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    zIndex: activeId.value === item.id ? 999 : 1,
+    elevation: activeId.value === item.id ? 5 : 0,
+    opacity: activeId.value === item.id ? 0.9 : 1,
+  }));
 
   return (
     <GestureDetector gesture={dragGesture}>
-      <Animated.View
-        style={[animatedStyle, { height: 68 }]}
-        className={`bg-secondary rounded-3xl p-4 border border-black/5 flex-row justify-between items-center ${
-          activeId.value === item.id ? "border-primary/20 bg-secondary/80" : ""
-        }`}
-      >
-        <View className="flex-row items-center gap-4 flex-1">
-          <View className="w-9 h-9 rounded-full bg-primary/10 items-center justify-center">
-            <Text className="text-xs font-black text-primary">
-              #{item.position}
-            </Text>
+      <Animated.View style={[animatedStyle, { height: 68 }]}>
+        <View className="bg-secondary rounded-3xl p-4 border border-black/5 flex-row justify-between items-center flex-1">
+          <View className="flex-row items-center gap-4 flex-1">
+            <View className="w-9 h-9 rounded-full bg-primary/10 items-center justify-center">
+              <Text className="text-xs font-black text-primary">
+                #{item.position}
+              </Text>
+            </View>
+            <View className="flex-1">
+              <Text className="text-sm font-bold text-foreground">
+                {item.players.join(" & ")}
+              </Text>
+              <Text className="text-sm font-semibold text-muted-foreground">
+                Waiting
+              </Text>
+            </View>
           </View>
-          <View className="flex-1">
-            <Text className="text-sm font-bold text-foreground">
-              {item.players.join(" & ")}
-            </Text>
-            <Text className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">
-              {item.status}
-            </Text>
-          </View>
-        </View>
-        <View className="flex-row items-center gap-3">
           <Pressable className="p-1 active:opacity-50">
             <SymbolView
               name="line.3.horizontal"
@@ -154,84 +152,204 @@ function DraggableQueueItem({
   );
 }
 
+const SCREEN_W = Dimensions.get("window").width;
+const CARD_W = SCREEN_W - 64;
+const SNAP = CARD_W + 16;
+
+function MatchRow({
+  label,
+  teamA,
+  teamB,
+  accent,
+}: {
+  label: string;
+  teamA: string[] | null;
+  teamB: string[] | null;
+  accent?: boolean;
+}) {
+  if (!teamA || !teamB)
+    return (
+      <View className="bg-background/40 rounded-2xl px-3 py-2.5 items-center">
+        <Text className="text-[10px] text-muted-foreground font-semibold">
+          Waiting for teams…
+        </Text>
+      </View>
+    );
+  return (
+    <View className="flex-row items-center bg-background/60 rounded-2xl px-3 py-2.5 gap-2">
+      <View className="flex-1">
+        <Text
+          className={`text-sm font-semibold mb-0.5 ${accent ? "text-red-500" : "text-muted-foreground"}`}
+        >
+          Team A
+        </Text>
+        <Text
+          className="text-xs font-extrabold text-foreground"
+          numberOfLines={1}
+        >
+          {teamA.join(" & ")}
+        </Text>
+      </View>
+      <Text className="text-[10px] font-black text-muted-foreground/30">
+        VS
+      </Text>
+      <View className="flex-1 items-end">
+        <Text
+          className={`text-sm font-semibold mb-0.5 ${accent ? "text-blue-500" : "text-muted-foreground"}`}
+        >
+          Team B
+        </Text>
+        <Text
+          className="text-xs font-extrabold text-foreground text-right"
+          numberOfLines={1}
+        >
+          {teamB.join(" & ")}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function CourtCard({
+  court,
+  currentA,
+  currentB,
+  nextA,
+  nextB,
+  isActive,
+}: {
+  court: DBCourt;
+  currentA: string[] | null;
+  currentB: string[] | null;
+  nextA: string[] | null;
+  nextB: string[] | null;
+  isActive: boolean;
+}) {
+  return (
+    <View
+      style={{ width: isActive ? CARD_W + 16 : CARD_W - 16 }}
+      className={`bg-secondary rounded-3xl p-4 gap-4 ${
+        isActive ? "elevation-10" : ""
+      }`}
+    >
+      {/* Header */}
+      <View className="flex-row items-center justify-between">
+        <Text className="text-sm font-black text-foreground">{court.name}</Text>
+        <View
+          className={`px-2.5 py-1 rounded-full ${isActive ? "bg-primary" : "bg-primary/10"}`}
+        >
+          <Text
+            className={`text-sm font-bold ${isActive ? "text-white" : "text-primary"}`}
+          >
+            {court.sport}
+          </Text>
+        </View>
+      </View>
+
+      {/* Current Match */}
+      <View className="gap-2">
+        <View className="flex-row items-center gap-2">
+          <View className="w-1.5 h-1.5 rounded-full bg-green-500" />
+          <Text className="text-sm font-extrabold text-muted-foreground">
+            Current Match
+          </Text>
+        </View>
+        <View className="w-full aspect-[2.5/1] bg-[#2D5A27] rounded-2xl border border-white/20 relative overflow-hidden mb-1">
+          <View className="absolute left-1/2 top-0 bottom-0 w-[1.5px] bg-white/60" />
+          <View className="absolute top-2 bottom-2 left-2 right-2 border border-white/30 rounded" />
+          {currentA && currentB ? (
+            <>
+              <View className="absolute left-3 top-0 bottom-0 justify-center gap-1.5">
+                {currentA.map((p, i) => (
+                  <View key={i} className="bg-red-500 px-2 py-0.5 rounded-full">
+                    <Text className="text-[7px] font-bold text-white">
+                      {p.split(" ")[0]}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <View className="absolute right-3 top-0 bottom-0 justify-center gap-1.5 items-end">
+                {currentB.map((p, i) => (
+                  <View
+                    key={i}
+                    className="bg-blue-500 px-2 py-0.5 rounded-full"
+                  >
+                    <Text className="text-[7px] font-bold text-white">
+                      {p.split(" ")[0]}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : (
+            <View className="absolute inset-0 items-center justify-center">
+              <Text className="text-sm font-bold text-white/50">
+                Court Empty
+              </Text>
+            </View>
+          )}
+        </View>
+        <MatchRow label="current" teamA={currentA} teamB={currentB} accent />
+      </View>
+
+      {/* Next Matchup */}
+      <View className="gap-2">
+        <Text className="text-sm font-semibold text-muted">Next Matchup</Text>
+        <MatchRow label="next" teamA={nextA} teamB={nextB} />
+      </View>
+    </View>
+  );
+}
+
 export default function QueueScreen() {
   const safeAreaInsets = useSafeAreaInsets();
   const theme = useTheme();
 
-  const [queueMode, setQueueMode] = React.useState<"singles" | "doubles">(
-    "doubles",
-  );
-
+  const [courts, setCourts] = React.useState<DBCourt[]>([]);
+  const [pool, setPool] = React.useState<Team[]>(INITIAL_POOL);
   const [scrollEnabled, setScrollEnabled] = React.useState(true);
   const [activeDragId, setActiveDragId] = React.useState<number | null>(null);
+  const [activeCardIndex, setActiveCardIndex] = React.useState(0);
 
   const activeId = useSharedValue<number | null>(null);
   const order = useSharedValue<number[]>([]);
 
-  const [waitingPool, setWaitingPool] = React.useState([
-    { id: 1, players: ["Elena Rodriguez", "David Kim"], position: 1, status: "Next Up" },
-    { id: 2, players: ["Chris Evans", "Tom Holland"], position: 2, status: "Waiting" },
-    { id: 3, players: ["Jessica Alba", "Scarlett J."], position: 3, status: "Waiting" },
-    { id: 4, players: ["Taylor Swift", "Travis Kelce"], position: 4, status: "Waiting" },
-  ]);
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const dbCourts = await getCourts();
+        setCourts(dbCourts.length > 0 ? dbCourts : MOCK_COURTS);
+      } catch {
+        setCourts(MOCK_COURTS);
+      }
+    })();
+  }, []);
+
+  const assignedCount = courts.length * 4;
+  const waitingPool = pool.slice(assignedCount);
 
   React.useEffect(() => {
-    setWaitingPool(
-      queueMode === "singles"
-        ? [
-            { id: 1, players: ["Elena Rodriguez"], position: 1, status: "Next Up" },
-            { id: 2, players: ["Chris Evans"], position: 2, status: "Waiting" },
-            { id: 3, players: ["Jessica Alba"], position: 3, status: "Waiting" },
-            { id: 4, players: ["Taylor Swift"], position: 4, status: "Waiting" },
-          ]
-        : [
-            { id: 1, players: ["Elena Rodriguez", "David Kim"], position: 1, status: "Next Up" },
-            { id: 2, players: ["Chris Evans", "Tom Holland"], position: 2, status: "Waiting" },
-            { id: 3, players: ["Jessica Alba", "Scarlett J."], position: 3, status: "Waiting" },
-            { id: 4, players: ["Taylor Swift", "Travis Kelce"], position: 4, status: "Waiting" },
-          ]
-    );
-  }, [queueMode]);
-
-  React.useEffect(() => {
-    order.value = waitingPool.map((item) => item.id);
-  }, [waitingPool]);
+    order.value = waitingPool.map((t) => t.id);
+  }, [waitingPool.length]);
 
   const handleDragEnd = React.useCallback(
     (newOrder: number[]) => {
-      const reordered = newOrder.map(
-        (id) => waitingPool.find((p) => p.id === id)!
+      const updated = reorderWaitingPool(
+        pool,
+        newOrder,
+        assignedCount,
+        waitingPool,
       );
-      reordered.forEach((item, idx) => {
-        item.position = idx + 1;
-        item.status = idx === 0 ? "Next Up" : "Waiting";
-      });
-      setWaitingPool(reordered);
+      setPool(updated);
       setActiveDragId(null);
       setScrollEnabled(true);
     },
-    [waitingPool]
+    [pool, waitingPool, assignedCount],
   );
 
   const handleShuffle = () => {
-    const shuffled = [...waitingPool].sort(() => Math.random() - 0.5);
-    shuffled.forEach((item, idx) => {
-      item.position = idx + 1;
-      item.status = idx === 0 ? "Next Up" : "Waiting";
-    });
-    setWaitingPool(shuffled);
-  };
-
-  const nextMatch = {
-    teamA:
-      queueMode === "singles"
-        ? ["Alex Rivera"]
-        : ["Alex Rivera", "Jordan Chen"],
-    teamB:
-      queueMode === "singles"
-        ? ["Sarah Thompson"]
-        : ["Sarah Thompson", "Marcus Weber"],
-    court: "Court 02",
+    const updated = shuffleWaitingPool(pool, assignedCount);
+    setPool(updated);
   };
 
   const insets = {
@@ -240,15 +358,9 @@ export default function QueueScreen() {
   };
 
   const contentPlatformStyle = Platform.select({
-    android: {
-      paddingBottom: insets.bottom,
-    },
-    ios: {
-      paddingBottom: insets.bottom,
-    },
-    default: {
-      paddingBottom: Spacing.four,
-    },
+    android: { paddingBottom: insets.bottom },
+    ios: { paddingBottom: insets.bottom },
+    default: { paddingBottom: Spacing.four },
   });
 
   return (
@@ -262,15 +374,15 @@ export default function QueueScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View className="px-5 max-w-[800px] w-full self-center gap-6">
-          {/* Header */}
-          <View className="flex-row justify-between items-center py-2">
+        {/* Header */}
+        <View className="px-5 max-w-[800px] w-full self-center">
+          <View className="flex-row justify-between items-center py-2 mb-6">
             <View>
               <Text className="text-3xl font-extrabold tracking-tight text-foreground">
                 Court Queue
               </Text>
               <Text className="text-sm font-medium text-muted-foreground">
-                Queue Management
+                Live Rotation
               </Text>
             </View>
             <Pressable
@@ -282,157 +394,88 @@ export default function QueueScreen() {
                 tintColor={theme.foreground}
                 size={12}
               />
-              <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
-                Shuffle
-              </Text>
+              <Text className="text-sm font-bold text-foreground">Shuffle</Text>
             </Pressable>
           </View>
+        </View>
 
-          {/* Queue Mode Toggles */}
-          <View className="flex-row bg-secondary p-1.5 rounded-full border border-black/5">
-            <Pressable
-              onPress={() => setQueueMode("singles")}
-              className={`flex-1 py-2.5 rounded-full items-center ${
-                queueMode === "singles" ? "bg-white" : ""
-              }`}
-            >
-              <Text
-                className={`text-xs font-extrabold uppercase tracking-wider ${
-                  queueMode === "singles"
-                    ? "text-foreground"
-                    : "text-muted-foreground"
-                }`}
-              >
-                Singles
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setQueueMode("doubles")}
-              className={`flex-1 py-2.5 rounded-full items-center ${
-                queueMode === "doubles" ? "bg-white" : ""
-              }`}
-            >
-              <Text
-                className={`text-xs font-extrabold uppercase tracking-wider ${
-                  queueMode === "doubles"
-                    ? "text-foreground"
-                    : "text-muted-foreground"
-                }`}
-              >
-                Doubles
-              </Text>
-            </Pressable>
-          </View>
+        {/* Horizontal Court Cards */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={CARD_W + 12}
+          decelerationRate="fast"
+          snapToAlignment="center"
+          onScroll={(event) => {
+            const contentOffset = event.nativeEvent.contentOffset.x;
+            const index = Math.round(contentOffset / (CARD_W + 12));
+            if (
+              index !== activeCardIndex &&
+              index >= 0 &&
+              index < courts.length
+            ) {
+              setActiveCardIndex(index);
+            }
+          }}
+          scrollEventThrottle={16}
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            gap: 12,
+            paddingBottom: 4,
+          }}
+          className="mb-3"
+        >
+          {courts.map((court, idx) => {
+            const { currentA, currentB, nextA, nextB } = getCourtMatch(
+              pool,
+              idx,
+            );
+            return (
+              <CourtCard
+                key={court.id}
+                court={court}
+                currentA={currentA}
+                currentB={currentB}
+                nextA={nextA}
+                nextB={nextB}
+                isActive={idx === activeCardIndex}
+              />
+            );
+          })}
+        </ScrollView>
 
-          {/* Court Mini Graphic */}
-          <View className="bg-secondary/40 rounded-3xl p-4 border border-black/5 items-center">
-            <Text className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider mb-3">
-              Live Rotation Map
+        {/* Indicator Dots */}
+        <View className="flex-row justify-center gap-1.5 mb-6">
+          {courts.map((_, idx) => (
+            <View
+              key={idx}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                idx === activeCardIndex
+                  ? "w-4 bg-primary"
+                  : "w-1.5 bg-muted-foreground/30"
+              }`}
+            />
+          ))}
+        </View>
+
+        {/* Waiting Pool */}
+        <View className="px-5 max-w-[800px] w-full self-center gap-3">
+          <View className="flex-row justify-between items-center">
+            <Text className="text-lg font-extrabold text-foreground">
+              Waiting Pool
             </Text>
-            <View className="w-full aspect-[2/1] max-w-[340px] bg-[#2D5A27] rounded-2xl border-2 border-white relative p-1 overflow-hidden">
-              <View className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-white/70 border-dashed border-r border-white/50" />
-              <View className="absolute top-2 bottom-2 left-2 right-2 border border-white/40" />
-
-              <View className="absolute left-4 top-0 bottom-0 justify-center gap-3">
-                {nextMatch.teamA.map((player, idx) => (
-                  <View
-                    key={idx}
-                    className="bg-primary px-2.5 py-1 rounded-full"
-                  >
-                    <Text className="text-[8px] font-bold text-white uppercase">
-                      {player.split(" ")[0]}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              <View className="absolute right-4 top-0 bottom-0 justify-center gap-3 items-end">
-                {nextMatch.teamB.map((player, idx) => (
-                  <View
-                    key={idx}
-                    className="bg-foreground px-2.5 py-1 rounded-full"
-                  >
-                    <Text className="text-[8px] font-bold text-background uppercase">
-                      {player.split(" ")[0]}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              <View className="absolute bottom-2 left-1/2 -ml-8 bg-black/40 px-2 py-0.5 rounded-full">
-                <Text className="text-[7px] font-bold text-white/80 uppercase tracking-widest text-center">
-                  {nextMatch.court}
-                </Text>
-              </View>
-            </View>
+            <Text className="text-xs font-bold text-primary">
+              {waitingPool.length} Teams
+            </Text>
           </View>
 
-          {/* Next Match Section */}
-          <View className="bg-secondary rounded-[32px] p-5 border border-black/5 gap-4">
-            <View className="flex-row items-center justify-between">
-              <Text className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider">
-                Next Matchup
-              </Text>
-              <View className="bg-primary px-3 py-1 rounded-full">
-                <Text className="text-[9px] font-black text-white uppercase tracking-wider">
-                  1st in Queue
-                </Text>
-              </View>
-            </View>
-
-            <View className="flex-row justify-between items-center bg-white dark:bg-black/20 p-4 rounded-2xl border border-black/5">
-              <View className="flex-1">
-                <Text className="text-[10px] font-bold text-primary uppercase">
-                  Team A
-                </Text>
-                <Text className="text-sm font-extrabold text-foreground mt-0.5">
-                  {nextMatch.teamA.join(" & ")}
-                </Text>
-              </View>
-              <View className="px-3">
-                <Text className="text-xs font-black text-muted-foreground/30">
-                  VS
-                </Text>
-              </View>
-              <View className="flex-1 items-end">
-                <Text className="text-[10px] font-bold text-foreground uppercase">
-                  Team B
-                </Text>
-                <Text className="text-sm font-extrabold text-foreground mt-0.5 text-right">
-                  {nextMatch.teamB.join(" & ")}
-                </Text>
-              </View>
-            </View>
-
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: "/score",
-                  params: {
-                    teamA: JSON.stringify(nextMatch.teamA),
-                    teamB: JSON.stringify(nextMatch.teamB),
-                  },
-                })
-              }
-              className="bg-primary py-4 rounded-full items-center justify-center active:scale-[0.98] transition-transform"
-            >
-              <Text className="text-white text-base font-bold">
-                Start Match
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Waiting Pool Section */}
-          <View className="gap-3">
-            <View className="flex-row justify-between items-center">
-              <Text className="text-lg font-extrabold text-foreground">
-                Waiting Pool
-              </Text>
-              <Text className="text-xs font-bold text-primary">
-                {waitingPool.length} Teams
+          {waitingPool.length === 0 ? (
+            <View className="bg-secondary/40 rounded-3xl p-6 border border-dashed border-black/10 items-center py-10">
+              <Text className="text-sm font-bold text-muted-foreground">
+                No teams waiting
               </Text>
             </View>
-
+          ) : (
             <View style={{ height: waitingPool.length * 80 - 12 }}>
               {waitingPool.map((item, idx) => (
                 <DraggableQueueItem
@@ -449,17 +492,9 @@ export default function QueueScreen() {
                 />
               ))}
             </View>
-          </View>
+          )}
         </View>
       </ScrollView>
-
-      {/* Add Player FAB */}
-      <Pressable
-        className="absolute bottom-6 right-6 w-14 h-14 bg-primary rounded-full items-center justify-center active:scale-90 transition-transform"
-        style={{ zIndex: 100 }}
-      >
-        <SymbolView name="person.badge.plus" tintColor="#fff" size={22} />
-      </Pressable>
     </View>
   );
 }

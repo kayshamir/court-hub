@@ -215,7 +215,7 @@ export default function ScoreScreen() {
                   <TextInput
                     className="flex-1 bg-background border border-black/10 rounded-2xl px-4 py-2.5 text-sm text-foreground font-medium outline-none"
                     placeholder="Enter target score"
-                    placeholderTextColor={theme.mutedForeground}
+                    placeholderTextColor={theme.textSecondary}
                     value={customTarget}
                     onChangeText={setCustomTarget}
                     keyboardType="numeric"
@@ -244,14 +244,14 @@ export default function ScoreScreen() {
                 value={winBy2}
                 onValueChange={(v) => { if (!matchStarted) setWinBy2(v); }}
                 disabled={matchStarted}
-                trackColor={{ false: theme.secondary, true: theme.primary }}
+                trackColor={{ false: theme.backgroundSelected, true: theme.primary }}
                 thumbColor="#fff"
               />
             </View>
 
             {/* Live summary */}
             <View className="flex-row items-center gap-1.5 -mt-1">
-              <Info size={11} color={theme.mutedForeground} />
+              <Info size={11} color={theme.textSecondary} />
               <Text className="text-[10px] text-muted-foreground font-semibold">
                 {winBy2
                   ? `First to ${winTarget}, win by 2 (cap ${winTarget + 9})`
