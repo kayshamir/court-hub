@@ -1,5 +1,5 @@
 import { Player } from "@/types/player";
-import { addPlayer, getPlayers, initDatabase } from "./database";
+import { addPlayer, deletePlayer, getPlayers, initDatabase } from "./database";
 
 export async function initializePlayersDB() {
   await initDatabase();
@@ -27,9 +27,14 @@ export async function fetchRankedPlayersList(): Promise<Player[]> {
     };
   });
 
+  const getWinRateValue = (player: Player) => parseFloat(player.rate) || 0;
+
   mappedPlayers.sort((a, b) => {
+    const rateA = getWinRateValue(a);
+    const rateB = getWinRateValue(b);
+    if (rateB !== rateA) return rateB - rateA;
     if (b.wins !== a.wins) return b.wins - a.wins;
-    return parseFloat(b.rate) - parseFloat(a.rate);
+    return a.name.localeCompare(b.name);
   });
 
   return mappedPlayers.map((p, idx) => ({
@@ -46,4 +51,8 @@ export async function registerPlayer(name: string) {
   const newForm: ("W" | "L")[] = [];
 
   await addPlayer(name, "00", newForm, winsNum, lossesNum, rateVal, false);
+}
+
+export async function removePlayer(playerId: number) {
+  await deletePlayer(playerId);
 }

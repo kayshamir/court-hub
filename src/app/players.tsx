@@ -6,6 +6,7 @@ import {
   fetchRankedPlayersList,
   initializePlayersDB,
   registerPlayer,
+  removePlayer,
 } from "@/services/player-service";
 import { Player } from "@/types/player";
 import { SymbolView } from "expo-symbols";
@@ -33,6 +34,7 @@ export default function PlayersScreen() {
   const [isAddModalVisible, setIsAddModalVisible] = React.useState(false);
   const [newPlayerName, setNewPlayerName] = React.useState("");
   const [players, setPlayers] = React.useState<Player[]>([]);
+  const [playerToRemove, setPlayerToRemove] = React.useState<Player | null>(null);
 
   // Initialize DB and fetch players
   const loadPlayers = async () => {
@@ -62,6 +64,28 @@ export default function PlayersScreen() {
       await loadPlayers();
     } catch (error) {
       console.error("Error adding player to SQLite:", error);
+      setIsLoading(false);
+    }
+  };
+
+  const openRemovePlayerModal = (player: Player) => {
+    setPlayerToRemove(player);
+  };
+
+  const closeRemovePlayerModal = () => {
+    setPlayerToRemove(null);
+  };
+
+  const handleRemovePlayer = async () => {
+    if (!playerToRemove) return;
+
+    try {
+      setIsLoading(true);
+      await removePlayer(playerToRemove.id);
+      setPlayerToRemove(null);
+      await loadPlayers();
+    } catch (error) {
+      console.error("Error removing player:", error);
       setIsLoading(false);
     }
   };
@@ -127,7 +151,7 @@ export default function PlayersScreen() {
               style={{
                 paddingBottom: 3,
               }}
-              placeholder="Search player stats..."
+              placeholder="Search player name..."
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholderTextColor={theme.mutedForeground}
@@ -256,34 +280,42 @@ export default function PlayersScreen() {
                         </View>
                       </View>
 
-                      <View className="w-36 flex-row justify-end gap-1 items-center">
-                        <View className="items-end gap-1">
-                          <View className="flex-row gap-0.5">
-                            {player.form.map((res, index) => (
-                              <View
-                                key={index}
-                                className={`w-5 h-5 items-center justify-center rounded-full ${
-                                  res === "W"
-                                    ? "bg-primary"
-                                    : "bg-black/10 dark:bg-white/10"
-                                }`}
-                              >
-                                <Text
-                                  className={`text-[9px] font-black ${
+                      <View className="flex-row items-center gap-2">
+                        <View className="w-36 flex-row justify-end gap-1 items-center">
+                          <View className="items-end gap-1">
+                            <View className="flex-row gap-0.5">
+                              {player.form.map((res, index) => (
+                                <View
+                                  key={index}
+                                  className={`w-5 h-5 items-center justify-center rounded-full ${
                                     res === "W"
-                                      ? "text-white"
-                                      : "text-muted-foreground"
+                                      ? "bg-primary"
+                                      : "bg-black/10 dark:bg-white/10"
                                   }`}
                                 >
-                                  {res}
-                                </Text>
-                              </View>
-                            ))}
+                                  <Text
+                                    className={`text-[9px] font-black ${
+                                      res === "W"
+                                        ? "text-white"
+                                        : "text-muted-foreground"
+                                    }`}
+                                  >
+                                    {res}
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                            <Text className="text-[9px] font-bold text-muted-foreground uppercase">
+                              {player.rate} Win rate
+                            </Text>
                           </View>
-                          <Text className="text-[9px] font-bold text-muted-foreground uppercase">
-                            {player.rate} Win rate
-                          </Text>
                         </View>
+                        <Pressable
+                          onPress={() => openRemovePlayerModal(player)}
+                          className="w-10 h-10 rounded-full bg-red-500/90 items-center justify-center active:opacity-80"
+                        >
+                          <SymbolView name="trash" tintColor="#fff" size={18} />
+                        </Pressable>
                       </View>
                     </View>
                   ))}
@@ -345,6 +377,49 @@ export default function PlayersScreen() {
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={Boolean(playerToRemove)}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={closeRemovePlayerModal}
+      >
+        <Pressable
+          className="flex-1 bg-black/40 items-center justify-center px-6"
+          onPress={closeRemovePlayerModal}
+        >
+          <Pressable
+            className="w-full max-w-md rounded-[28px] bg-background p-6 shadow-lg"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text className="text-lg font-extrabold text-foreground mb-2">
+              Remove player?
+            </Text>
+            <Text className="text-sm text-muted-foreground leading-6">
+              This will permanently delete the selected player.
+            </Text>
+
+            <View className="flex-row justify-end gap-3 mt-6">
+              <Pressable
+                onPress={closeRemovePlayerModal}
+                className="rounded-full border border-muted-foreground/30 px-4 py-3"
+              >
+                <Text className="text-sm font-semibold text-muted-foreground">
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleRemovePlayer}
+                className="rounded-full bg-red-500 px-4 py-3 items-center justify-center"
+              >
+                <Text className="text-sm font-semibold text-white">
+                  Delete
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );

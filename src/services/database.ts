@@ -1,5 +1,5 @@
-import * as SQLite from "expo-sqlite";
 import { DBPlayer } from "@/types/player";
+import * as SQLite from "expo-sqlite";
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 
@@ -45,6 +45,11 @@ export async function addPlayer(
     "INSERT INTO players (name, rank, form, wins, losses, rate, isTopPerformer) VALUES (?, ?, ?, ?, ?, ?, ?)",
     [name, rank, JSON.stringify(form), wins, losses, rate, isTopPerformer ? 1 : 0]
   );
+}
+
+export async function deletePlayer(id: number) {
+  const db = await getDB();
+  await db.execAsync(`DELETE FROM players WHERE id = ${Number(id)}`);
 }
 
 export async function clearPlayers() {
