@@ -1,13 +1,3 @@
-import { Button } from "@/components/ui/button";
-import { TextInput } from "@/components/ui/text-input";
-import { BottomTabInset, Spacing } from "@/constants/theme";
-import { useTheme } from "@/hooks/use-theme";
-import {
-  fetchRankedPlayersList,
-  initializePlayersDB,
-  registerPlayer,
-} from "@/services/player-service";
-import { Player } from "@/types/player";
 import { SymbolView } from "expo-symbols";
 import React from "react";
 import {
@@ -23,6 +13,16 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Button } from "../components/ui/button";
+import { TextInput } from "../components/ui/text-input";
+import { BottomTabInset, Spacing } from "../constants/theme";
+import { useTheme } from "../hooks/use-theme";
+import {
+  fetchRankedPlayersList,
+  initializePlayersDB,
+  registerPlayer,
+} from "../services/player-service";
+import { Player } from "../types/player";
 
 export default function PlayersScreen() {
   const safeAreaInsets = useSafeAreaInsets();
@@ -36,7 +36,6 @@ export default function PlayersScreen() {
   const [initialLosses, setInitialLosses] = React.useState("0");
   const [players, setPlayers] = React.useState<Player[]>([]);
 
-  // Initialize DB and fetch players
   const loadPlayers = async () => {
     try {
       await initializePlayersDB();
