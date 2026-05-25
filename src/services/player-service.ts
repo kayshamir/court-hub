@@ -39,26 +39,11 @@ export async function fetchRankedPlayersList(): Promise<Player[]> {
   }));
 }
 
-export async function registerPlayer(
-  name: string,
-  initialWins: string,
-  initialLosses: string,
-) {
-  const winsNum = parseInt(initialWins) || 0;
-  const lossesNum = parseInt(initialLosses) || 0;
-  const total = winsNum + lossesNum;
-  const rateVal =
-    total > 0 ? `${((winsNum / total) * 100).toFixed(1)}%` : "0.0%";
-
+export async function registerPlayer(name: string) {
+  const winsNum = 0;
+  const lossesNum = 0;
+  const rateVal = "0.0%";
   const newForm: ("W" | "L")[] = [];
-  for (let i = 0; i < 5; i++) {
-    if (i < winsNum) {
-      newForm.push("W");
-    } else {
-      newForm.push("L");
-    }
-  }
-  newForm.sort(() => Math.random() - 0.5);
 
   await addPlayer(name, "00", newForm, winsNum, lossesNum, rateVal, false);
 }

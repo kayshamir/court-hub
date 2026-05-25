@@ -32,8 +32,6 @@ export default function PlayersScreen() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isAddModalVisible, setIsAddModalVisible] = React.useState(false);
   const [newPlayerName, setNewPlayerName] = React.useState("");
-  const [initialWins, setInitialWins] = React.useState("0");
-  const [initialLosses, setInitialLosses] = React.useState("0");
   const [players, setPlayers] = React.useState<Player[]>([]);
 
   // Initialize DB and fetch players
@@ -58,10 +56,8 @@ export default function PlayersScreen() {
 
     try {
       setIsLoading(true);
-      await registerPlayer(newPlayerName, initialWins, initialLosses);
+      await registerPlayer(newPlayerName);
       setNewPlayerName("");
-      setInitialWins("0");
-      setInitialLosses("0");
       setIsAddModalVisible(false);
       await loadPlayers();
     } catch (error) {
@@ -340,25 +336,9 @@ export default function PlayersScreen() {
                   value={newPlayerName}
                   onChangeText={setNewPlayerName}
                 />
-
-                <View className="flex-row gap-4">
-                  <TextInput
-                    label="Initial Wins"
-                    placeholder="0"
-                    value={initialWins}
-                    onChangeText={setInitialWins}
-                    keyboardType="numeric"
-                    containerClassName="flex-1"
-                  />
-                  <TextInput
-                    label="Initial Losses"
-                    placeholder="0"
-                    value={initialLosses}
-                    onChangeText={setInitialLosses}
-                    keyboardType="numeric"
-                    containerClassName="flex-1"
-                  />
-                </View>
+                <Text className="text-xs text-muted-foreground">
+                  Player stats start empty and populate after their first match.
+                </Text>
               </View>
 
               <Button onPress={handleAddPlayer} label="Create Profile" />
