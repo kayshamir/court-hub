@@ -3,6 +3,7 @@ import { TextInput } from "@/components/ui/text-input";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import {
+  changePlayerSkillLevel,
   fetchRankedPlayersList,
   initializePlayersDB,
   registerPlayer,
@@ -33,6 +34,12 @@ export default function PlayersScreen() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isAddModalVisible, setIsAddModalVisible] = React.useState(false);
   const [newPlayerName, setNewPlayerName] = React.useState("");
+  const [newPlayerLevel, setNewPlayerLevel] = React.useState<"Beginner" | "Intermediate" | "Advanced">("Beginner");
+  const [isLevelDropdownOpen, setIsLevelDropdownOpen] = React.useState(false);
+  const [playerToEdit, setPlayerToEdit] = React.useState<Player | null>(null);
+  const [editPlayerLevel, setEditPlayerLevel] = React.useState<"Beginner" | "Intermediate" | "Advanced">("Beginner");
+  const [isEditLevelDropdownOpen, setIsEditLevelDropdownOpen] = React.useState(false);
+  const [openPlayerOptionsId, setOpenPlayerOptionsId] = React.useState<number | null>(null);
   const [players, setPlayers] = React.useState<Player[]>([]);
   const [playerToRemove, setPlayerToRemove] = React.useState<Player | null>(null);
 
@@ -57,8 +64,10 @@ export default function PlayersScreen() {
 
     try {
       setIsLoading(true);
-      await registerPlayer(newPlayerName);
+      await registerPlayer(newPlayerName, newPlayerLevel);
       setNewPlayerName("");
+      setNewPlayerLevel("Beginner");
+      setIsLevelDropdownOpen(false);
       setIsAddModalVisible(false);
       await loadPlayers();
     } catch (error) {
@@ -85,6 +94,39 @@ export default function PlayersScreen() {
       await loadPlayers();
     } catch (error) {
       console.error("Error removing player:", error);
+      setIsLoading(false);
+    }
+  };
+
+  const openEditPlayerModal = (player: Player) => {
+    setPlayerToEdit(player);
+    setEditPlayerLevel(player.level);
+    setIsEditLevelDropdownOpen(false);
+  };
+
+  const closeEditPlayerModal = () => {
+    setPlayerToEdit(null);
+    setIsEditLevelDropdownOpen(false);
+    setOpenPlayerOptionsId(null);
+  };
+
+  const togglePlayerOptions = (playerId: number) => {
+    setOpenPlayerOptionsId((current) =>
+      current === playerId ? null : playerId,
+    );
+  };
+
+  const handleUpdatePlayerLevel = async () => {
+    if (!playerToEdit) return;
+
+    try {
+      setIsLoading(true);
+      await changePlayerSkillLevel(playerToEdit.id, editPlayerLevel);
+      setPlayerToEdit(null);
+      setIsEditLevelDropdownOpen(false);
+      await loadPlayers();
+    } catch (error) {
+      console.error("Error updating player skill level:", error);
       setIsLoading(false);
     }
   };
@@ -276,6 +318,9 @@ export default function PlayersScreen() {
                           <Text className="text-base font-extrabold text-foreground">
                             {player.name}
                           </Text>
+                          <Text className="text-[11px] text-muted-foreground mt-1">
+                            {player.level}
+                          </Text>
                         </View>
                       </View>
 
@@ -309,12 +354,46 @@ export default function PlayersScreen() {
                             </Text>
                           </View>
                         </View>
-                        <Pressable
-                          onPress={() => openRemovePlayerModal(player)}
-                          className="w-10 h-10 rounded-full bg-red-500/90 items-center justify-center active:opacity-80"
-                        >
-                          <SymbolView name="trash" tintColor="#fff" size={18} />
-                        </Pressable>
+
+                        <View className="relative">
+                          <Pressable
+                            onPress={() => togglePlayerOptions(player.id)}
+                            className="w-10 h-10 rounded-full bg-secondary items-center justify-center active:opacity-80"
+                          >
+                            <SymbolView
+                              name="ellipsis"
+                              tintColor={theme.foreground}
+                              size={18}
+                            />
+                          </Pressable>
+
+                          {openPlayerOptionsId === player.id && (
+                            <View className="absolute right-0 top-12 z-20 w-40 rounded-3xl bg-background border border-black/10 shadow-lg overflow-hidden">
+                              <Pressable
+                                onPress={() => {
+                                  togglePlayerOptions(player.id);
+                                  openEditPlayerModal(player);
+                                }}
+                                className="px-4 py-4 border-b border-black/10"
+                              >
+                                <Text className="text-sm font-semibold text-foreground">
+                                  Update
+                                </Text>
+                              </Pressable>
+                              <Pressable
+                                onPress={() => {
+                                  togglePlayerOptions(player.id);
+                                  openRemovePlayerModal(player);
+                                }}
+                                className="px-4 py-4"
+                              >
+                                <Text className="text-sm font-semibold text-red-500">
+                                  Delete
+                                </Text>
+                              </Pressable>
+                            </View>
+                          )}
+                        </View>
                       </View>
                     </View>
                   ))}
@@ -367,6 +446,57 @@ export default function PlayersScreen() {
                   value={newPlayerName}
                   onChangeText={setNewPlayerName}
                 />
+
+                <View className="gap-2">
+                  <Text className="text-sm font-semibold text-foreground">
+                    Skill Level
+                  </Text>
+                  <View className="relative">
+                    <Pressable
+                      onPress={() => setIsLevelDropdownOpen((open) => !open)}
+                      className="bg-secondary rounded-2xl border border-black/5 px-4 py-4 flex-row items-center justify-between"
+                    >
+                      <Text className="text-sm text-foreground font-medium">
+                        {newPlayerLevel}
+                      </Text>
+                      <SymbolView
+                        name={isLevelDropdownOpen ? "chevron.up" : "chevron.down"}
+                        tintColor={theme.mutedForeground}
+                        size={16}
+                      />
+                    </Pressable>
+
+                    {isLevelDropdownOpen && (
+                      <View className="absolute z-50 mt-2 w-full rounded-2xl bg-background border border-black/10 shadow-lg overflow-hidden">
+                        {[
+                          "Beginner",
+                          "Intermediate",
+                          "Advanced",
+                        ].map((level) => (
+                          <Pressable
+                            key={level}
+                            onPress={() => {
+                              setNewPlayerLevel(level as "Beginner" | "Intermediate" | "Advanced");
+                              setIsLevelDropdownOpen(false);
+                            }}
+                            className="px-4 py-4"
+                          >
+                            <Text
+                              className={`text-sm font-medium ${
+                                newPlayerLevel === level
+                                  ? "text-primary"
+                                  : "text-foreground"
+                              }`}
+                            >
+                              {level}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                </View>
+
                 <Text className="text-xs text-muted-foreground">
                   Player stats start empty and populate after their first match.
                 </Text>
@@ -376,6 +506,99 @@ export default function PlayersScreen() {
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={Boolean(playerToEdit)}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={closeEditPlayerModal}
+      >
+        <Pressable
+          className="flex-1 bg-black/40 items-center justify-center px-6"
+          onPress={closeEditPlayerModal}
+        >
+          <Pressable
+            className="w-full max-w-md rounded-[28px] bg-background p-6 shadow-lg"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text className="text-lg font-extrabold text-foreground mb-2">
+              Update Skill Level
+            </Text>
+            <Text className="text-sm text-muted-foreground mb-4">
+              {playerToEdit?.name}
+            </Text>
+
+            <View className="gap-2">
+              <Text className="text-sm font-semibold text-foreground">
+                Selected Level
+              </Text>
+              <View className="relative">
+                <Pressable
+                  onPress={() => setIsEditLevelDropdownOpen((open) => !open)}
+                  className="bg-secondary rounded-2xl border border-black/5 px-4 py-4 flex-row items-center justify-between"
+                >
+                  <Text className="text-sm text-foreground font-medium">
+                    {editPlayerLevel}
+                  </Text>
+                  <SymbolView
+                    name={isEditLevelDropdownOpen ? "chevron.up" : "chevron.down"}
+                    tintColor={theme.mutedForeground}
+                    size={16}
+                  />
+                </Pressable>
+
+                {isEditLevelDropdownOpen && (
+                  <View className="absolute z-50 mt-2 w-full rounded-2xl bg-background border border-black/10 shadow-lg overflow-hidden">
+                    {[
+                      "Beginner",
+                      "Intermediate",
+                      "Advanced",
+                    ].map((level) => (
+                      <Pressable
+                        key={level}
+                        onPress={() => {
+                          setEditPlayerLevel(level as "Beginner" | "Intermediate" | "Advanced");
+                          setIsEditLevelDropdownOpen(false);
+                        }}
+                        className="px-4 py-4"
+                      >
+                        <Text
+                          className={`text-sm font-medium ${
+                            editPlayerLevel === level
+                              ? "text-primary"
+                              : "text-foreground"
+                          }`}
+                        >
+                          {level}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View className="flex-row justify-end gap-3 mt-6">
+              <Pressable
+                onPress={closeEditPlayerModal}
+                className="rounded-full border border-muted-foreground/30 px-4 py-3"
+              >
+                <Text className="text-sm font-semibold text-muted-foreground">
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleUpdatePlayerLevel}
+                className="rounded-full bg-primary px-4 py-3 items-center justify-center"
+              >
+                <Text className="text-sm font-semibold text-white">
+                  Save
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -396,8 +619,7 @@ export default function PlayersScreen() {
               Remove player?
             </Text>
             <Text className="text-sm text-muted-foreground leading-6">
-              This will permanently delete the selected player.
-            </Text>
+              This action will permanently remove the selected player and their associated data.            </Text>
 
             <View className="flex-row justify-end gap-3 mt-6">
               <Pressable

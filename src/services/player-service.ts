@@ -1,5 +1,11 @@
-import { Player } from "@/types/player";
-import { addPlayer, deletePlayer, getPlayers, initDatabase } from "./database";
+import { Player, SkillLevel } from "@/types/player";
+import {
+    addPlayer,
+    deletePlayer,
+    getPlayers,
+    initDatabase,
+    updatePlayerLevel,
+} from "./database";
 
 export async function initializePlayersDB() {
   await initDatabase();
@@ -24,6 +30,7 @@ export async function fetchRankedPlayersList(): Promise<Player[]> {
       losses: p.losses,
       rate: p.rate || "0.0%",
       isTopPerformer: p.isTopPerformer === 1,
+      level: p.level || "Beginner",
     };
   });
 
@@ -44,15 +51,22 @@ export async function fetchRankedPlayersList(): Promise<Player[]> {
   }));
 }
 
-export async function registerPlayer(name: string) {
+export async function registerPlayer(name: string, level: SkillLevel) {
   const winsNum = 0;
   const lossesNum = 0;
   const rateVal = "0.0%";
   const newForm: ("W" | "L")[] = [];
 
-  await addPlayer(name, "00", newForm, winsNum, lossesNum, rateVal, false);
+  await addPlayer(name, "00", newForm, winsNum, lossesNum, rateVal, false, level);
 }
 
 export async function removePlayer(playerId: number) {
   await deletePlayer(playerId);
+}
+
+export async function changePlayerSkillLevel(
+  playerId: number,
+  level: SkillLevel,
+) {
+  await updatePlayerLevel(playerId, level);
 }

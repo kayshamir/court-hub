@@ -1,4 +1,4 @@
-import { DBPlayer } from "@/types/player";
+import { DBPlayer, SkillLevel } from "@/types/player";
 import * as SQLite from "expo-sqlite";
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
@@ -21,9 +21,20 @@ export async function initDatabase() {
       wins INTEGER DEFAULT 0,
       losses INTEGER DEFAULT 0,
       rate TEXT,
-      isTopPerformer INTEGER DEFAULT 0
+      isTopPerformer INTEGER DEFAULT 0,
+      level TEXT DEFAULT 'Beginner'
     );
   `);
+
+  const existingColumns = await db.getAllAsync<{ name: string }>(
+    "PRAGMA table_info(players);",
+  );
+
+  if (!existingColumns.some((column) => column.name === "level")) {
+    await db.execAsync(
+      "ALTER TABLE players ADD COLUMN level TEXT DEFAULT 'Beginner'",
+    );
+  }
 }
 
 export async function getPlayers(): Promise<DBPlayer[]> {
@@ -38,13 +49,28 @@ export async function addPlayer(
   wins: number,
   losses: number,
   rate: string,
-  isTopPerformer: boolean
+  isTopPerformer: boolean,
+  level: SkillLevel
 ) {
   const db = await getDB();
   await db.runAsync(
-    "INSERT INTO players (name, rank, form, wins, losses, rate, isTopPerformer) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [name, rank, JSON.stringify(form), wins, losses, rate, isTopPerformer ? 1 : 0]
+    "INSERT INTO players (name, rank, form, wins, losses, rate, isTopPerformer, level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    [
+      name,
+      rank,
+      JSON.stringify(form),
+      wins,
+      losses,
+      rate,
+      isTopPerformer ? 1 : 0,
+      level,
+    ],
   );
+}
+
+export async function updatePlayerLevel(id: number, level: SkillLevel) {
+  const db = await getDB();
+  await db.runAsync("UPDATE players SET level = ? WHERE id = ?", [level, id]);
 }
 
 export async function deletePlayer(id: number) {

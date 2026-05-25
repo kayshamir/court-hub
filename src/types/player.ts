@@ -1,3 +1,5 @@
+export type SkillLevel = "Beginner" | "Intermediate" | "Advanced";
+
 export interface Player {
   id: number;
   name: string;
@@ -7,6 +9,7 @@ export interface Player {
   losses: number;
   rate: string;
   isTopPerformer: boolean;
+  level: SkillLevel;
 }
 
 export interface DBPlayer {
@@ -18,4 +21,5 @@ export interface DBPlayer {
   losses: number;
   rate: string;
   isTopPerformer: number; // 0 or 1
+  level: SkillLevel;
 }
