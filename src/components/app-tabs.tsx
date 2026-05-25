@@ -23,7 +23,7 @@ export default function AppTabs() {
         }}
       >
         <Tabs.Screen
-          name="index"
+          name="(dashboard)"
           options={{
             title: "Dashboard",
           }}
@@ -92,7 +92,7 @@ function CustomTabBar({ state, descriptors, navigation, colors, scheme }: any) {
   const insets = useSafeAreaInsets();
 
   const tabIcons: Record<string, any> = {
-    index: require("@/assets/images/tabIcons/home.png"),
+    "(dashboard)": require("@/assets/images/tabIcons/home.png"),
     score: require("@/assets/images/tabIcons/score.png"),
     queue: require("@/assets/images/tabIcons/queue.png"),
     players: require("@/assets/images/tabIcons/players.png"),

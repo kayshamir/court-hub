@@ -10,7 +10,7 @@ import {
   removePlayer,
 } from "@/services/player-service";
 import { Player } from "@/types/player";
-import { SymbolView } from "expo-symbols";
+import { AppIcon } from "../../components/ui/icon";
 import React from "react";
 import {
   ActivityIndicator,
@@ -182,7 +182,7 @@ export default function PlayersScreen() {
               className="px-4 py-3 flex-row items-center gap-1.5 active:scale-95"
               small
             >
-              <SymbolView name="person.badge.plus" tintColor="#fff" size={18} />
+              <AppIcon name="person.badge.plus" tintColor="#fff" size={18} />
               <Text className="text-white text-xs font-extrabold tracking-wider">
                 Add Player
               </Text>
@@ -191,7 +191,7 @@ export default function PlayersScreen() {
 
           {/* Search Input */}
           <View className="relative flex-row items-center bg-secondary rounded-2xl px-4 py-3">
-            <SymbolView
+            <AppIcon
               name="magnifyingglass"
               tintColor={theme.primary}
               size={16}
@@ -214,11 +214,11 @@ export default function PlayersScreen() {
             </View>
           ) : players.length === 0 ? (
             <View className="bg-secondary/40 rounded-3xl p-6 border border-dashed border-black/10 items-center justify-center py-12">
-              <SymbolView
+              <AppIcon
                 name="person.3.fill"
                 tintColor={theme.textSecondary}
                 size={36}
-                className="opacity-50"
+                style={{ opacity: 0.5 }}
               />
               <Text className="text-base font-bold text-foreground mt-4">
                 No Players Yet
@@ -235,7 +235,7 @@ export default function PlayersScreen() {
                   <View className="z-10 flex-1">
                     <View className="flex-row items-center gap-2 mb-2">
                       <View className="bg-primary px-2.5 py-2 rounded-full flex-row items-center gap-1">
-                        <SymbolView
+                        <AppIcon
                           name="star.fill"
                           tintColor="#fff"
                           size={10}
@@ -279,7 +279,7 @@ export default function PlayersScreen() {
                   </View>
 
                   <View className="absolute right-0 bottom-0 opacity-5 rotate-12 z-0">
-                    <SymbolView
+                    <AppIcon
                       name="crown.fill"
                       tintColor={theme.foreground}
                       size={160}
@@ -440,7 +440,7 @@ export default function PlayersScreen() {
                   onPress={() => setIsAddModalVisible(false)}
                   className="w-8 h-8 rounded-full bg-secondary items-center justify-center active:opacity-70"
                 >
-                  <SymbolView
+                  <AppIcon
                     name="xmark"
                     tintColor={theme.foreground}
                     size={14}

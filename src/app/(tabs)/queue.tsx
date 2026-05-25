@@ -1,16 +1,16 @@
+import { AppIcon } from "@/components/ui/icon";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { DBCourt } from "@/db/schema";
 import { useTheme } from "@/hooks/use-theme";
 import { getCourts } from "@/services/database";
 import {
+  getCourtMatch,
   INITIAL_POOL,
   MOCK_COURTS,
-  getCourtMatch,
   reorderWaitingPool,
   shuffleWaitingPool,
 } from "@/services/queue-service";
 import { Team } from "@/types/queue";
-import { SymbolView } from "expo-symbols";
 import React from "react";
 import {
   Dimensions,
@@ -140,7 +140,7 @@ function DraggableQueueItem({
             </View>
           </View>
           <Pressable className="p-1 active:opacity-50">
-            <SymbolView
+            <AppIcon
               name="line.3.horizontal"
               tintColor={theme.foreground}
               size={16}
@@ -389,11 +389,7 @@ export default function QueueScreen() {
               onPress={handleShuffle}
               className="bg-secondary px-4 py-2 rounded-full flex-row items-center gap-1.5 border border-black/5 active:opacity-70"
             >
-              <SymbolView
-                name="shuffle"
-                tintColor={theme.foreground}
-                size={12}
-              />
+              <AppIcon name="shuffle" tintColor={theme.foreground} size={12} />
               <Text className="text-sm font-bold text-foreground">Shuffle</Text>
             </Pressable>
           </View>

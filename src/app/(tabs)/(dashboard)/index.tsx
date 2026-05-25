@@ -1,7 +1,8 @@
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useRouter } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { AppIcon } from "@/components/ui/icon";
+import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -50,7 +51,7 @@ export default function DashboardScreen() {
             </View>
             <View className="flex-row gap-3">
               <Pressable className="w-10 h-10 rounded-full bg-secondary items-center justify-center active:opacity-70">
-                <SymbolView
+                <AppIcon
                   name="bell.fill"
                   tintColor={theme.foreground}
                   size={18}
@@ -66,7 +67,7 @@ export default function DashboardScreen() {
           <View className="flex-row gap-4">
             <View className="flex-1 bg-secondary p-4 rounded-3xl border border-black/5">
               <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mb-3">
-                <SymbolView
+                <AppIcon
                   name="play.fill"
                   tintColor={theme.primary}
                   size={14}
@@ -80,7 +81,7 @@ export default function DashboardScreen() {
 
             <View className="flex-1 bg-secondary p-4 rounded-3xl border border-black/5">
               <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mb-3">
-                <SymbolView
+                <AppIcon
                   name="person.3.fill"
                   tintColor={theme.primary}
                   size={14}
@@ -96,7 +97,7 @@ export default function DashboardScreen() {
 
             <View className="flex-1 bg-secondary p-4 rounded-3xl border border-black/5">
               <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mb-3">
-                <SymbolView
+                <AppIcon
                   name="sportscourt.fill"
                   tintColor={theme.primary}
                   size={14}
@@ -129,7 +130,7 @@ export default function DashboardScreen() {
               <Text className="text-white text-lg font-black">21 - 19</Text>
             </View>
             <View className="absolute right-0 bottom-0 opacity-10 rotate-12">
-              <SymbolView name="sportscourt" tintColor="#fff" size={150} />
+              <AppIcon name="sportscourt" tintColor="#fff" size={150} />
             </View>
           </View>
 
@@ -142,7 +143,7 @@ export default function DashboardScreen() {
               onPress={() => router.push("/create-court")}
               className="bg-primary flex-row items-center gap-1.5 px-3 py-2 rounded-full active:opacity-70"
             >
-              <SymbolView name="plus" tintColor="#fff" size={12} />
+              <AppIcon name="plus" tintColor="#fff" size={12} />
               <Text className="text-[11px] font-extrabold text-white uppercase tracking-wider">
                 New Court
               </Text>
@@ -155,7 +156,7 @@ export default function DashboardScreen() {
             <View className="bg-secondary rounded-3xl overflow-hidden border border-black/5">
               <View className="p-4 border-b border-black/5 flex-row justify-between items-center">
                 <View className="flex-row items-center gap-3">
-                  <SymbolView
+                  <AppIcon
                     name="sparkles"
                     tintColor={theme.primary}
                     size={18}
@@ -217,7 +218,7 @@ export default function DashboardScreen() {
             <View className="bg-secondary rounded-3xl overflow-hidden border border-black/5">
               <View className="p-4 border-b border-black/5 flex-row justify-between items-center">
                 <View className="flex-row items-center gap-3">
-                  <SymbolView
+                  <AppIcon
                     name="checkmark.circle.fill"
                     tintColor="#2D5A27"
                     size={18}
@@ -254,11 +255,11 @@ export default function DashboardScreen() {
 
           {/* Interactive Court Map Card */}
           <View className="bg-secondary/40 rounded-3xl p-5 border border-dashed border-black/10 items-center justify-center py-8">
-            <SymbolView
+            <AppIcon
               name="map.fill"
               tintColor={theme.primary}
               size={36}
-              className="opacity-70"
+              style={{ opacity: 0.7 }}
             />
             <Text className="text-base font-bold text-foreground mt-3">
               Interactive Court Map
