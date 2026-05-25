@@ -1,7 +1,7 @@
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
-import { SymbolView } from "expo-symbols";
 import { router } from "expo-router";
+import { SymbolView } from "expo-symbols";
 import React from "react";
 import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -237,7 +237,7 @@ export default function QueueScreen() {
               }
               className="bg-primary py-4 rounded-full items-center justify-center active:scale-[0.98] transition-transform"
             >
-              <Text className="text-white text-xs font-extrabold uppercase tracking-widest">
+              <Text className="text-white text-base font-bold">
                 Start Match
               </Text>
             </Pressable>

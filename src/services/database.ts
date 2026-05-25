@@ -1,5 +1,5 @@
 import * as schema from "@/db/schema";
-import { matches, players } from "@/db/schema";
+import { courts, matches, players } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/expo-sqlite";
 import * as SQLite from "expo-sqlite";
@@ -94,4 +94,31 @@ export async function getRecentMatches(limit = 20) {
     .from(matches)
     .orderBy(desc(matches.played_at))
     .limit(limit);
+}
+
+// Courts
+
+export async function getCourts() {
+  return db
+    .select()
+    .from(courts)
+    .orderBy(desc(courts.createdAt));
+}
+
+export async function addCourt(
+  name: string,
+  sport: string,
+  matchType: string,
+) {
+  await db.insert(courts).values({
+    name,
+    sport,
+    matchType,
+    status: "available",
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function deleteCourt(id: number) {
+  await db.delete(courts).where(eq(courts.id, id));
 }
