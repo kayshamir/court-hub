@@ -8,8 +8,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function DashboardScreen() {
   const safeAreaInsets = useSafeAreaInsets();
   const theme = useTheme();
-
-  // Combine tab bar spacing
   const insets = {
     ...safeAreaInsets,
     bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.four,
