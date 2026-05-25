@@ -1,43 +1,19 @@
+import * as schema from "@/db/schema";
+import { matches, players } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/expo-sqlite";
 import * as SQLite from "expo-sqlite";
-import { DBMatch, DBPlayer } from "@/types/player";
 
-let dbInstance: SQLite.SQLiteDatabase | null = null;
+export const expoDb = SQLite.openDatabaseSync("courthub.db");
+export const db = drizzle(expoDb, { schema });
 
-export async function getDB() {
-  if (!dbInstance) {
-    dbInstance = await SQLite.openDatabaseAsync("courthub.db");
-  }
-  return dbInstance;
-}
+// Players
 
-export async function initDatabase() {
-  const db = await getDB();
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS players (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      rank TEXT NOT NULL,
-      form TEXT NOT NULL,
-      wins INTEGER DEFAULT 0,
-      losses INTEGER DEFAULT 0,
-      rate TEXT,
-      isTopPerformer INTEGER DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS matches (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_a TEXT NOT NULL,
-      team_b TEXT NOT NULL,
-      score_a INTEGER NOT NULL,
-      score_b INTEGER NOT NULL,
-      winner TEXT NOT NULL,
-      played_at TEXT NOT NULL
-    );
-  `);
-}
-
-export async function getPlayers(): Promise<DBPlayer[]> {
-  const db = await getDB();
-  return await db.getAllAsync<DBPlayer>("SELECT * FROM players ORDER BY isTopPerformer DESC, rank ASC");
+export async function getPlayers() {
+  return db
+    .select()
+    .from(players)
+    .orderBy(desc(players.isTopPerformer), players.rank);
 }
 
 export async function addPlayer(
@@ -47,21 +23,26 @@ export async function addPlayer(
   wins: number,
   losses: number,
   rate: string,
-  isTopPerformer: boolean
+  isTopPerformer: boolean,
 ) {
-  const db = await getDB();
-  await db.runAsync(
-    "INSERT INTO players (name, rank, form, wins, losses, rate, isTopPerformer) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [name, rank, JSON.stringify(form), wins, losses, rate, isTopPerformer ? 1 : 0]
-  );
+  await db.insert(players).values({
+    name,
+    rank,
+    form: JSON.stringify(form),
+    wins,
+    losses,
+    rate,
+    isTopPerformer: isTopPerformer ? 1 : 0,
+  });
 }
 
 export async function updatePlayerStats(name: string, won: boolean) {
-  const db = await getDB();
-  const player = await db.getFirstAsync<DBPlayer>(
-    "SELECT * FROM players WHERE name = ?",
-    [name]
-  );
+  const [player] = await db
+    .select()
+    .from(players)
+    .where(eq(players.name, name))
+    .limit(1);
+
   if (!player) return;
 
   const wins = won ? player.wins + 1 : player.wins;
@@ -78,35 +59,39 @@ export async function updatePlayerStats(name: string, won: boolean) {
   form.unshift(won ? "W" : "L");
   form = form.slice(0, 5);
 
-  await db.runAsync(
-    "UPDATE players SET wins = ?, losses = ?, rate = ?, form = ? WHERE name = ?",
-    [wins, losses, rate, JSON.stringify(form), name]
-  );
+  await db
+    .update(players)
+    .set({ wins, losses, rate, form: JSON.stringify(form) })
+    .where(eq(players.name, name));
 }
 
 export async function clearPlayers() {
-  const db = await getDB();
-  await db.execAsync("DELETE FROM players");
+  await db.delete(players);
 }
+
+// Matches
 
 export async function addMatch(
   teamA: string[],
   teamB: string[],
   scoreA: number,
   scoreB: number,
-  winner: string
+  winner: string,
 ) {
-  const db = await getDB();
-  await db.runAsync(
-    "INSERT INTO matches (team_a, team_b, score_a, score_b, winner, played_at) VALUES (?, ?, ?, ?, ?, ?)",
-    [JSON.stringify(teamA), JSON.stringify(teamB), scoreA, scoreB, winner, new Date().toISOString()]
-  );
+  await db.insert(matches).values({
+    team_a: JSON.stringify(teamA),
+    team_b: JSON.stringify(teamB),
+    score_a: scoreA,
+    score_b: scoreB,
+    winner,
+    played_at: new Date().toISOString(),
+  });
 }
 
-export async function getRecentMatches(limit = 20): Promise<DBMatch[]> {
-  const db = await getDB();
-  return await db.getAllAsync<DBMatch>(
-    "SELECT * FROM matches ORDER BY played_at DESC LIMIT ?",
-    [limit]
-  );
+export async function getRecentMatches(limit = 20) {
+  return db
+    .select()
+    .from(matches)
+    .orderBy(desc(matches.played_at))
+    .limit(limit);
 }

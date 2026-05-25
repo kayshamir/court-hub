@@ -1,15 +1,16 @@
-import { Player } from "@/types/player";
-import { addPlayer, getPlayers, initDatabase } from "./database";
+import { Player } from '@/types/player';
+import { DBPlayer } from '@/db/schema';
+import { addPlayer, getPlayers } from './database';
 
 export async function initializePlayersDB() {
-  await initDatabase();
+  // Migrations are now handled by useMigrations in _layout.tsx
 }
 
 export async function fetchRankedPlayersList(): Promise<Player[]> {
-  const dbPlayers = await getPlayers();
+  const dbPlayers: DBPlayer[] = await getPlayers();
 
   const mappedPlayers: Player[] = dbPlayers.map((p) => {
-    let parsedForm: ("W" | "L")[] = [];
+    let parsedForm: ('W' | 'L')[] = [];
     try {
       parsedForm = JSON.parse(p.form);
     } catch {
@@ -20,9 +21,9 @@ export async function fetchRankedPlayersList(): Promise<Player[]> {
       name: p.name,
       rank: p.rank,
       form: parsedForm,
-      wins: p.wins,
-      losses: p.losses,
-      rate: p.rate || "0.0%",
+      wins: p.wins ?? 0,
+      losses: p.losses ?? 0,
+      rate: p.rate ?? '0.0%',
       isTopPerformer: p.isTopPerformer === 1,
     };
   });
@@ -42,23 +43,23 @@ export async function fetchRankedPlayersList(): Promise<Player[]> {
 export async function registerPlayer(
   name: string,
   initialWins: string,
-  initialLosses: string,
+  initialLosses: string
 ) {
   const winsNum = parseInt(initialWins) || 0;
   const lossesNum = parseInt(initialLosses) || 0;
   const total = winsNum + lossesNum;
   const rateVal =
-    total > 0 ? `${((winsNum / total) * 100).toFixed(1)}%` : "0.0%";
+    total > 0 ? `${((winsNum / total) * 100).toFixed(1)}%` : '0.0%';
 
-  const newForm: ("W" | "L")[] = [];
+  const newForm: ('W' | 'L')[] = [];
   for (let i = 0; i < 5; i++) {
     if (i < winsNum) {
-      newForm.push("W");
+      newForm.push('W');
     } else {
-      newForm.push("L");
+      newForm.push('L');
     }
   }
   newForm.sort(() => Math.random() - 0.5);
 
-  await addPlayer(name, "00", newForm, winsNum, lossesNum, rateVal, false);
+  await addPlayer(name, '00', newForm, winsNum, lossesNum, rateVal, false);
 }

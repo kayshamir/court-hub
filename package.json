@@ -5,9 +5,11 @@
   "dependencies": {
     "@expo/ui": "~0.2.0-beta.9",
     "babel-preset-expo": "~54.0.10",
+    "drizzle-orm": "^0.45.2",
     "expo": "^54.0.34",
     "expo-constants": "~18.0.13",
     "expo-device": "~8.0.10",
+    "expo-drizzle-studio-plugin": "^0.2.1",
     "expo-font": "~14.0.11",
     "expo-glass-effect": "~0.1.10",
     "expo-image": "~3.0.11",
@@ -35,6 +37,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
+    "babel-plugin-inline-import": "^3.0.0",
+    "drizzle-kit": "^0.31.10",
     "typescript": "~5.9.2"
   },
   "scripts": {

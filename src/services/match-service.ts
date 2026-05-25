@@ -1,19 +1,19 @@
-import { Match, DBMatch } from "@/types/player";
-import { addMatch, getRecentMatches, updatePlayerStats, initDatabase } from "./database";
+import { Match } from '@/types/player';
+import { DBMatch } from '@/db/schema';
+import { addMatch, getRecentMatches, updatePlayerStats } from './database';
 
 export async function saveMatchResult(
   teamA: string[],
   teamB: string[],
   scoreA: number,
   scoreB: number,
-  winnerTeam: "A" | "B"
+  winnerTeam: 'A' | 'B'
 ) {
-  await initDatabase();
-  const winner = winnerTeam === "A" ? teamA.join(" & ") : teamB.join(" & ");
+  const winner = winnerTeam === 'A' ? teamA.join(' & ') : teamB.join(' & ');
   await addMatch(teamA, teamB, scoreA, scoreB, winner);
 
-  const winners = winnerTeam === "A" ? teamA : teamB;
-  const losers = winnerTeam === "A" ? teamB : teamA;
+  const winners = winnerTeam === 'A' ? teamA : teamB;
+  const losers = winnerTeam === 'A' ? teamB : teamA;
 
   await Promise.all([
     ...winners.map((name) => updatePlayerStats(name, true)),
@@ -22,7 +22,6 @@ export async function saveMatchResult(
 }
 
 export async function fetchMatchHistory(): Promise<Match[]> {
-  await initDatabase();
   const rows: DBMatch[] = await getRecentMatches(20);
   return rows.map((r) => ({
     id: r.id,
