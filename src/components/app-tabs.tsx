@@ -1,9 +1,11 @@
+import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
+import { useColorScheme } from "react-native";
+
 import { Colors } from "@/constants/theme";
 import { Image } from "expo-image";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
-import { Platform, Pressable, Text, View, useColorScheme } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AppTabs() {
@@ -62,7 +64,7 @@ export default function AppTabs() {
         default: colors.textSecondary,
       }}
     >
-      <NativeTabs.Trigger name="index">
+      <NativeTabs.Trigger name="(dashboard)">
         <Label>Dashboard</Label>
         <Icon src={require("@/assets/images/tabIcons/home.png")} />
       </NativeTabs.Trigger>

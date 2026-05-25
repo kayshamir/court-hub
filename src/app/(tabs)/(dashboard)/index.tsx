@@ -136,9 +136,13 @@ export default function DashboardScreen() {
             <Text className="text-lg font-extrabold text-foreground">
               Court Status
             </Text>
-            <Pressable>
-              <Text className="text-sm font-semibold text-primary">
-                View Map
+            <Pressable
+              onPress={() => router.push("/create-court")}
+              className="bg-primary flex-row items-center gap-1.5 px-3 py-2 rounded-full active:opacity-70"
+            >
+              <SymbolView name="plus" tintColor="#fff" size={12} />
+              <Text className="text-[11px] font-extrabold text-white uppercase tracking-wider">
+                New Court
               </Text>
             </Pressable>
           </View>
@@ -260,7 +264,7 @@ export default function DashboardScreen() {
             <Text className="text-xs text-muted-foreground text-center mt-1 mb-4 px-8">
               Visual representation of court status and live occupancy.
             </Text>
-            <Pressable className="bg-secondary border border-black/10 px-5 py-4 rounded-full active:opacity-70">
+            <Pressable className="bg-secondary border border-black/10 px-5 py-3 rounded-full active:opacity-70">
               <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
                 Explore Layout
               </Text>
@@ -269,13 +273,6 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
 
-      {/* Floating Action Button (FAB) */}
-      <Pressable
-        className="absolute bottom-6 right-6 w-14 h-14 bg-primary rounded-full items-center justify-center active:scale-90 transition-transform"
-        style={{ zIndex: 100 }}
-      >
-        <SymbolView name="plus" tintColor="#fff" size={24} />
-      </Pressable>
     </View>
   );
 }
