@@ -32,7 +32,7 @@ export function TextInput({
           paddingTop: 8,
         }}
         className={`bg-secondary rounded-2xl border border-black/5 px-4 py-4 text-sm text-foreground font-medium outline-none ${className}`}
-        placeholderTextColor={placeholderTextColor || theme.mutedForeground}
+        placeholderTextColor={placeholderTextColor || theme.textSecondary}
         {...props}
       />
     </View>

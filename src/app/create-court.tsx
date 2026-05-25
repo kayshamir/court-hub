@@ -5,8 +5,8 @@ import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { addCourt } from "@/services/database";
 import { MatchType, SPORT_CONFIGS, SportType } from "@/types/court";
-import { useRouter } from "expo-router";
-import { SymbolView } from "expo-symbols";
+import { Stack, useRouter } from "expo-router";
+import { AppIcon } from "@/components/ui/icon";
 import React from "react";
 import {
   Alert,
@@ -50,6 +50,7 @@ export default function CreateCourtScreen() {
 
   return (
     <View className="flex-1 bg-background">
+      <Stack.Screen options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       {/* Header is OUTSIDE KAV — so keyboardVerticalOffset = headerHeight is correct */}
       <View
         className="flex-row items-center justify-between px-5 border-b border-black/5 bg-background"
@@ -57,9 +58,10 @@ export default function CreateCourtScreen() {
       >
         <Pressable
           onPress={() => router.back()}
+          android_ripple={{ color: "rgba(0,0,0,0.1)", borderless: true }}
           className="w-9 h-9 rounded-full bg-secondary items-center justify-center active:opacity-70 border border-black/5"
         >
-          <SymbolView name="xmark" tintColor={theme.foreground} size={14} />
+          <AppIcon name="xmark" tintColor={theme.foreground} size={14} />
         </Pressable>
         <Text className="text-base font-extrabold tracking-tight text-foreground uppercase">
           New {sportConfig.label} Court
@@ -109,6 +111,7 @@ export default function CreateCourtScreen() {
             <View className="flex-row gap-3 pt-2">
               <Pressable
                 onPress={() => router.back()}
+                android_ripple={{ color: "rgba(0,0,0,0.1)", borderless: false }}
                 className="flex-1 py-4 bg-secondary rounded-full items-center justify-center border border-black/5 active:opacity-70"
               >
                 <Text className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
@@ -118,6 +121,7 @@ export default function CreateCourtScreen() {
               <Pressable
                 onPress={handleCreate}
                 disabled={saving}
+                android_ripple={{ color: "rgba(193, 18, 31, 0.25)", borderless: false }}
                 className="flex-[2] py-4 bg-primary rounded-full items-center justify-center active:opacity-80"
                 style={{ opacity: saving ? 0.6 : 1 }}
               >

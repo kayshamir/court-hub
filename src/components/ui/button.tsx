@@ -19,6 +19,7 @@ export function Button({
 }: CustomButtonProps) {
   return (
     <Pressable
+      android_ripple={{ color: "rgba(193, 18, 31, 0.25)", borderless: false }}
       className={`bg-primary ${small ? "py-2.5" : "py-5"} rounded-full items-center justify-center active:scale-[0.98] transition-transform ${className}`}
       {...props}
     >

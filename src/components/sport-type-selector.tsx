@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
-import { SymbolView } from "expo-symbols";
+import { AppIcon } from "@/components/ui/icon";
 import { SportType, SPORT_CONFIGS } from "@/types/court";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -33,7 +33,7 @@ export function SportTypeSelector({ selected, onSelect }: SportTypeSelectorProps
                   : "bg-secondary border-black/5"
               }`}
             >
-              <SymbolView
+              <AppIcon
                 name={config.symbolName as any}
                 tintColor={isActive ? theme.primary : theme.textSecondary}
                 size={26}
