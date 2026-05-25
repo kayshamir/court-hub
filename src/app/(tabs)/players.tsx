@@ -10,7 +10,6 @@ import {
   removePlayer,
 } from "@/services/player-service";
 import { Player } from "@/types/player";
-import { AppIcon } from "../../components/ui/icon";
 import React from "react";
 import {
   ActivityIndicator,
@@ -25,6 +24,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppIcon } from "../../components/ui/icon";
 
 export default function PlayersScreen() {
   const safeAreaInsets = useSafeAreaInsets();
@@ -235,11 +235,7 @@ export default function PlayersScreen() {
                   <View className="z-10 flex-1">
                     <View className="flex-row items-center gap-2 mb-2">
                       <View className="bg-primary px-2.5 py-2 rounded-full flex-row items-center gap-1">
-                        <AppIcon
-                          name="star.fill"
-                          tintColor="#fff"
-                          size={10}
-                        />
+                        <AppIcon name="star.fill" tintColor="#fff" size={10} />
                         <Text className="text-white text-[9px] font-black uppercase tracking-widest">
                           Top Performer
                         </Text>
@@ -369,7 +365,7 @@ export default function PlayersScreen() {
                             onPress={() => togglePlayerOptions(player.id)}
                             className="w-10 h-10 rounded-full bg-secondary items-center justify-center active:opacity-80"
                           >
-                            <SymbolView
+                            <AppIcon
                               name="ellipsis"
                               tintColor={theme.foreground}
                               size={18}
@@ -468,7 +464,7 @@ export default function PlayersScreen() {
                       <Text className="text-sm text-foreground font-medium">
                         {newPlayerLevel}
                       </Text>
-                      <SymbolView
+                      <AppIcon
                         name={
                           isLevelDropdownOpen ? "chevron.up" : "chevron.down"
                         }
@@ -555,7 +551,7 @@ export default function PlayersScreen() {
                   <Text className="text-sm text-foreground font-medium">
                     {editPlayerLevel}
                   </Text>
-                  <SymbolView
+                  <AppIcon
                     name={
                       isEditLevelDropdownOpen ? "chevron.up" : "chevron.down"
                     }

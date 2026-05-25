@@ -259,22 +259,25 @@ function CourtCard({
           <View className="absolute top-2 bottom-2 left-2 right-2 border border-white/30 rounded" />
           {currentA && currentB ? (
             <>
-              <View className="absolute left-3 top-0 bottom-0 justify-center gap-1.5">
+              <View
+                style={{ width: "50%" }}
+                className="absolute left-0 top-0 bottom-0 justify-center items-center gap-1.5"
+              >
                 {currentA.map((p, i) => (
-                  <View key={i} className="bg-red-500 px-2 py-0.5 rounded-full">
-                    <Text className="text-[7px] font-bold text-white">
+                  <View key={i} className="bg-red-500 px-2 py-1 rounded-full">
+                    <Text className="text-xs font-bold text-white">
                       {p.split(" ")[0]}
                     </Text>
                   </View>
                 ))}
               </View>
-              <View className="absolute right-3 top-0 bottom-0 justify-center gap-1.5 items-end">
+              <View
+                style={{ width: "50%" }}
+                className="absolute right-0 top-0 bottom-0 justify-center items-center gap-1.5"
+              >
                 {currentB.map((p, i) => (
-                  <View
-                    key={i}
-                    className="bg-blue-500 px-2 py-0.5 rounded-full"
-                  >
-                    <Text className="text-[7px] font-bold text-white">
+                  <View key={i} className="bg-blue-500 px-2 py-1 rounded-full">
+                    <Text className="text-xs font-bold text-white">
                       {p.split(" ")[0]}
                     </Text>
                   </View>
