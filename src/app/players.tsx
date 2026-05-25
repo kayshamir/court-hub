@@ -36,7 +36,6 @@ export default function PlayersScreen() {
   const [players, setPlayers] = React.useState<Player[]>([]);
   const [playerToRemove, setPlayerToRemove] = React.useState<Player | null>(null);
 
-  // Initialize DB and fetch players
   const loadPlayers = async () => {
     try {
       await initializePlayersDB();
