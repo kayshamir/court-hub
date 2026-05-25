@@ -30,8 +30,8 @@ export default function AppTabs() {
           <TabTrigger name="queue" href="/queue" asChild>
             <TabButton>Queue</TabButton>
           </TabTrigger>
-          <TabTrigger name="settings" href="/settings" asChild>
-            <TabButton>Settings</TabButton>
+          <TabTrigger name="players" href="/players" asChild>
+            <TabButton>Players</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>

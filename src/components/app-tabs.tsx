@@ -28,9 +28,9 @@ export default function AppTabs() {
         <Icon src={require("@/assets/images/tabIcons/queue.png")} />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="settings">
-        <Label>Settings</Label>
-        <Icon src={require("@/assets/images/tabIcons/settings.png")} />
+      <NativeTabs.Trigger name="players">
+        <Label>Players</Label>
+        <Icon src={require("@/assets/images/tabIcons/players.png")} />
       </NativeTabs.Trigger>
     </NativeTabs>
   );
