@@ -10,7 +10,7 @@ import { useDrizzleStudio } from "expo-drizzle-studio-plugin";
 import { Slot } from "expo-router";
 import { Text, useColorScheme, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import migrations from "../../drizzle/migrations";
+import migrations from "@drizzle/migrations";
 import "../global.css";
 
 export default function RootLayout() {
