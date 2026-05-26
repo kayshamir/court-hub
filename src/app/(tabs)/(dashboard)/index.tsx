@@ -1,9 +1,8 @@
+import { AppIcon } from "@/components/ui/icon";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useRouter } from "expo-router";
-import { AppIcon } from "@/components/ui/icon";
-import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -52,7 +51,7 @@ export default function DashboardScreen() {
                 Sports Queue & Scoring
               </Text>
             </View>
-            <View className="flex-row gap-3">
+            {/* <View className="flex-row gap-3">
               <Pressable className="w-10 h-10 rounded-full bg-secondary items-center justify-center active:opacity-70">
                 <AppIcon
                   name="bell.fill"
@@ -63,18 +62,14 @@ export default function DashboardScreen() {
               <Pressable className="w-10 h-10 rounded-full bg-primary items-center justify-center active:opacity-70">
                 <Text className="text-white text-xs font-bold">JD</Text>
               </Pressable>
-            </View>
+            </View> */}
           </View>
 
           {/* Quick Stats Grid */}
           <View className="flex-row gap-4">
             <View className="flex-1 bg-secondary p-4 rounded-3xl border border-border">
               <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mb-3">
-                <AppIcon
-                  name="play.fill"
-                  tintColor={theme.primary}
-                  size={14}
-                />
+                <AppIcon name="play.fill" tintColor={theme.primary} size={14} />
               </View>
               <Text className="text-2xl font-extrabold text-foreground">8</Text>
               <Text className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
