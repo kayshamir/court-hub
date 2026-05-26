@@ -1,12 +1,13 @@
 import { CourtPreview } from "@/components/court-preview";
 import { MatchTypeToggle } from "@/components/match-type-toggle";
 import { SportTypeSelector } from "@/components/sport-type-selector";
+import { AppIcon } from "@/components/ui/icon";
+import { TextInput } from "@/components/ui/text-input";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { addCourt } from "@/services/database";
 import { MatchType, SPORT_CONFIGS, SportType } from "@/types/court";
 import { Stack, useRouter } from "expo-router";
-import { AppIcon } from "@/components/ui/icon";
 import React from "react";
 import {
   Alert,
@@ -15,7 +16,6 @@ import {
   Pressable,
   ScrollView,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -50,7 +50,9 @@ export default function CreateCourtScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <Stack.Screen options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+      <Stack.Screen
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
       {/* Header is OUTSIDE KAV — so keyboardVerticalOffset = headerHeight is correct */}
       <View
         className="flex-row items-center justify-between px-5 border-b border-black/5 bg-background"
@@ -90,17 +92,11 @@ export default function CreateCourtScreen() {
             <CourtPreview sportType={sportType} />
             <View className="bg-secondary rounded-3xl p-5 border border-black/5 gap-5">
               <View className="gap-2">
-                <Text className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest">
-                  Court Name
-                </Text>
                 <TextInput
+                  label="Court Name"
+                  placeholder="Enter full name"
                   value={courtName}
                   onChangeText={setCourtName}
-                  placeholder="e.g., Center Court"
-                  placeholderTextColor={theme.textSecondary}
-                  className="bg-background rounded-2xl px-4 py-3 text-foreground text-sm font-semibold border border-black/5"
-                  returnKeyType="done"
-                  maxLength={40}
                 />
               </View>
               <SportTypeSelector selected={sportType} onSelect={setSportType} />
@@ -121,7 +117,10 @@ export default function CreateCourtScreen() {
               <Pressable
                 onPress={handleCreate}
                 disabled={saving}
-                android_ripple={{ color: "rgba(193, 18, 31, 0.25)", borderless: false }}
+                android_ripple={{
+                  color: "rgba(193, 18, 31, 0.25)",
+                  borderless: false,
+                }}
                 className="flex-[2] py-4 bg-primary rounded-full items-center justify-center active:opacity-80"
                 style={{ opacity: saving ? 0.6 : 1 }}
               >
