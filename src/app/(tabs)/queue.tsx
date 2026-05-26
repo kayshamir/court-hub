@@ -3,7 +3,7 @@ import { AppIcon } from "@/components/ui/icon";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { DBCourt } from "@/db/schema";
 import { useTheme } from "@/hooks/use-theme";
-import { getCourts } from "@/services/database";
+import { getCourts, clearAllMatchups } from "@/services/database";
 import { endSession, fetchActivePlayers } from "@/services/player-service";
 import {
   getPairingMode,
@@ -437,6 +437,7 @@ export default function QueueScreen() {
                       key={mode.id}
                       onPress={async () => {
                         setPairingMode(mode.id as PairingMode);
+                        await clearAllMatchups();
                         await rebuildGlobalQueue(courts);
                       }}
                       className={`flex-1 py-4 px-2 rounded-3xl border items-center justify-center transition-all ${
