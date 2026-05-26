@@ -1,6 +1,6 @@
 import * as schema from "@/db/schema";
-import { courts, matches, players, DBPlayer } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { courts, matches, players, DBPlayer, matchups, DBMatchup } from "@/db/schema";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/expo-sqlite";
 import { SkillLevel } from "@/types/player";
 import * as SQLite from "expo-sqlite";
@@ -83,6 +83,27 @@ export async function clearPlayers() {
   await db.delete(players);
 }
 
+export async function updatePlayerStatus(id: number, status: "active" | "inactive") {
+  await db
+    .update(players)
+    .set({ status })
+    .where(eq(players.id, id));
+}
+
+export async function resetAllPlayersToInactive() {
+  await db
+    .update(players)
+    .set({ status: "inactive" });
+}
+
+export async function getActivePlayers(): Promise<DBPlayer[]> {
+  return db
+    .select()
+    .from(players)
+    .where(eq(players.status, "active"))
+    .orderBy(desc(players.isTopPerformer), players.rank);
+}
+
 // Matches
 export async function addMatch(
   teamA: string[],
@@ -134,4 +155,73 @@ export async function addCourt(
 
 export async function deleteCourt(id: number) {
   await db.delete(courts).where(eq(courts.id, id));
+}
+
+// Matchups / Queue
+export async function addMatchups(
+  matchupsData: {
+    teamA: string;
+    teamB: string;
+    orderIndex: number;
+    status?: "waiting" | "playing" | "finished";
+    courtId?: number | null;
+  }[]
+) {
+  if (matchupsData.length === 0) return;
+  await db.insert(matchups).values(
+    matchupsData.map((m) => ({
+      team_a: m.teamA,
+      team_b: m.teamB,
+      order_index: m.orderIndex,
+      status: m.status || "waiting",
+      courtId: m.courtId || null,
+    }))
+  );
+}
+
+export async function clearWaitingQueue() {
+  await db.delete(matchups).where(eq(matchups.status, "waiting"));
+}
+
+export async function clearAllMatchups() {
+  await db.delete(matchups);
+}
+
+export async function getGlobalQueue(): Promise<DBMatchup[]> {
+  return db
+    .select()
+    .from(matchups)
+    .where(eq(matchups.status, "waiting"))
+    .orderBy(matchups.order_index);
+}
+
+export async function getActiveMatchups(): Promise<DBMatchup[]> {
+  return db
+    .select()
+    .from(matchups)
+    .where(eq(matchups.status, "playing"));
+}
+
+export async function updateMatchupStatus(
+  id: number,
+  status: "waiting" | "playing" | "finished",
+  courtId: number | null = null
+) {
+  await db
+    .update(matchups)
+    .set({ status, courtId })
+    .where(eq(matchups.id, id));
+}
+
+export async function deleteMatchupById(id: number) {
+  await db.delete(matchups).where(eq(matchups.id, id));
+}
+
+export async function getActiveMatchupForCourt(courtId: number) {
+  const [result] = await db
+    .select()
+    .from(matchups)
+    .where(and(eq(matchups.status, "playing"), eq(matchups.courtId, courtId)))
+    .limit(1);
+  return result ?? null;
 }

@@ -26,23 +26,18 @@ export default function AppTabs() {
         screenOptions={{
           headerShown: false,
         }}
+        initialRouteName="(dashboard)"
       >
-        <Tabs.Screen
-          name="(dashboard)"
-          options={{
-            title: "Dashboard",
-          }}
-        />
-        <Tabs.Screen
-          name="score"
-          options={{
-            title: "Score",
-          }}
-        />
         <Tabs.Screen
           name="queue"
           options={{
             title: "Queue",
+          }}
+        />
+        <Tabs.Screen
+          name="(dashboard)"
+          options={{
+            title: "Dashboard",
           }}
         />
         <Tabs.Screen
@@ -69,19 +64,14 @@ export default function AppTabs() {
         default: colors.textSecondary,
       }}
     >
-      <NativeTabs.Trigger name="(dashboard)">
-        <Label>Dashboard</Label>
-        <Icon src={require("@/assets/images/tabIcons/home.png")} />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="score">
-        <Label>Score</Label>
-        <Icon src={require("@/assets/images/tabIcons/score.png")} />
-      </NativeTabs.Trigger>
-
       <NativeTabs.Trigger name="queue">
         <Label>Queue</Label>
         <Icon src={require("@/assets/images/tabIcons/queue.png")} />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="(dashboard)">
+        <Label>Dashboard</Label>
+        <Icon src={require("@/assets/images/tabIcons/home.png")} />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="players">
@@ -98,7 +88,6 @@ function CustomTabBar({ state, descriptors, navigation, colors, scheme }: any) {
 
   const tabIcons: Record<string, any> = {
     "(dashboard)": require("@/assets/images/tabIcons/home.png"),
-    score: require("@/assets/images/tabIcons/score.png"),
     queue: require("@/assets/images/tabIcons/queue.png"),
     players: require("@/assets/images/tabIcons/players.png"),
   };

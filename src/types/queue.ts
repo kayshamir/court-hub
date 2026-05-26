@@ -1,5 +1,7 @@
-export type Team = {
-  id: number;
-  players: string[];
-  position: number;
+import { Player } from "./player";
+
+export type Matchup = {
+  id: string;
+  teamA: Player[];
+  teamB: Player[];
 };

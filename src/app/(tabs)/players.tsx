@@ -8,8 +8,11 @@ import {
   initializePlayersDB,
   registerPlayer,
   removePlayer,
+  togglePlayerStatus,
 } from "@/services/player-service";
+import { removePlayerFromQueue } from "@/services/queue-service";
 import { Player } from "@/types/player";
+import { useFocusEffect } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -18,11 +21,13 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   TextInput as RNTextInput,
   ScrollView,
   Text,
   View,
 } from "react-native";
+import Swipeable from "react-native-gesture-handler/Swipeable";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppIcon } from "../../components/ui/icon";
 
@@ -37,20 +42,15 @@ export default function PlayersScreen() {
   const [newPlayerLevel, setNewPlayerLevel] = React.useState<
     "Beginner" | "Intermediate" | "Advanced"
   >("Beginner");
-  const [isLevelDropdownOpen, setIsLevelDropdownOpen] = React.useState(false);
   const [playerToEdit, setPlayerToEdit] = React.useState<Player | null>(null);
   const [editPlayerLevel, setEditPlayerLevel] = React.useState<
     "Beginner" | "Intermediate" | "Advanced"
   >("Beginner");
-  const [isEditLevelDropdownOpen, setIsEditLevelDropdownOpen] =
-    React.useState(false);
-  const [openPlayerOptionsId, setOpenPlayerOptionsId] = React.useState<
-    number | null
-  >(null);
   const [players, setPlayers] = React.useState<Player[]>([]);
   const [playerToRemove, setPlayerToRemove] = React.useState<Player | null>(
     null,
   );
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   const loadPlayers = async () => {
     try {
@@ -64,9 +64,17 @@ export default function PlayersScreen() {
     }
   };
 
-  React.useEffect(() => {
-    loadPlayers();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadPlayers();
+    }, []),
+  );
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadPlayers();
+    setIsRefreshing(false);
+  };
 
   const handleAddPlayer = async () => {
     if (!newPlayerName.trim()) return;
@@ -76,7 +84,6 @@ export default function PlayersScreen() {
       await registerPlayer(newPlayerName, newPlayerLevel);
       setNewPlayerName("");
       setNewPlayerLevel("Beginner");
-      setIsLevelDropdownOpen(false);
       setIsAddModalVisible(false);
       await loadPlayers();
     } catch (error) {
@@ -98,6 +105,7 @@ export default function PlayersScreen() {
 
     try {
       setIsLoading(true);
+      await removePlayerFromQueue(playerToRemove.id);
       await removePlayer(playerToRemove.id);
       setPlayerToRemove(null);
       await loadPlayers();
@@ -110,19 +118,10 @@ export default function PlayersScreen() {
   const openEditPlayerModal = (player: Player) => {
     setPlayerToEdit(player);
     setEditPlayerLevel(player.level);
-    setIsEditLevelDropdownOpen(false);
   };
 
   const closeEditPlayerModal = () => {
     setPlayerToEdit(null);
-    setIsEditLevelDropdownOpen(false);
-    setOpenPlayerOptionsId(null);
-  };
-
-  const togglePlayerOptions = (playerId: number) => {
-    setOpenPlayerOptionsId((current) =>
-      current === playerId ? null : playerId,
-    );
   };
 
   const handleUpdatePlayerLevel = async () => {
@@ -130,9 +129,9 @@ export default function PlayersScreen() {
 
     try {
       setIsLoading(true);
+      await removePlayerFromQueue(playerToEdit.id);
       await changePlayerSkillLevel(playerToEdit.id, editPlayerLevel);
       setPlayerToEdit(null);
-      setIsEditLevelDropdownOpen(false);
       await loadPlayers();
     } catch (error) {
       console.error("Error updating player skill level:", error);
@@ -140,10 +139,34 @@ export default function PlayersScreen() {
     }
   };
 
-  const topPerformer = players.length > 0 ? players[0] : null;
+  const handleToggleStatus = async (player: Player) => {
+    const goingInactive = player.status === "active";
+    try {
+      if (goingInactive) {
+        await removePlayerFromQueue(player.id);
+      }
+      await togglePlayerStatus(player.id, player.status);
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === player.id
+            ? { ...p, status: p.status === "active" ? "inactive" : "active" }
+            : p,
+        ),
+      );
+    } catch (error) {
+      console.error("Error toggling player status:", error);
+      await loadPlayers();
+    }
+  };
+
+  const topPerformer =
+    players.length > 0 && players[0].isTopPerformer ? players[0] : null;
   const regularPlayers = players.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+  const activePlayersCount = players.filter(
+    (p) => p.status === "active",
+  ).length;
 
   const insets = {
     ...safeAreaInsets,
@@ -165,6 +188,14 @@ export default function PlayersScreen() {
           contentPlatformStyle,
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
       >
         <View className="px-5 max-w-[800px] w-full self-center gap-6">
           {/* Header */}
@@ -190,7 +221,7 @@ export default function PlayersScreen() {
           </View>
 
           {/* Search Input */}
-          <View className="relative flex-row items-center bg-secondary rounded-2xl px-4 py-3">
+          <View className="relative flex-row items-center bg-secondary rounded-full px-4 py-3">
             <AppIcon
               name="magnifyingglass"
               tintColor={theme.primary}
@@ -230,69 +261,98 @@ export default function PlayersScreen() {
             </View>
           ) : (
             <>
-              {topPerformer && (
-                <View className="bg-secondary rounded-3xl p-5 border border-border flex-row justify-between items-center relative overflow-hidden">
-                  <View className="z-10 flex-1">
-                    <View className="flex-row items-center gap-2 mb-2">
-                      <View className="bg-primary px-2.5 py-2 rounded-full flex-row items-center gap-1">
-                        <AppIcon name="star.fill" tintColor="#fff" size={10} />
-                        <Text className="text-white text-[9px] font-black uppercase tracking-widest">
-                          Top Performer
-                        </Text>
-                      </View>
-                    </View>
-                    <Text className="text-2xl font-black text-foreground uppercase tracking-tight">
-                      {topPerformer.name}
-                    </Text>
-
-                    <View className="mt-3">
-                      <Text className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                        Recent Form Streak
+              <View className="bg-secondary rounded-3xl p-5 border border-border flex-row justify-between items-center relative overflow-hidden">
+                <View className="z-10 flex-1">
+                  <View className="flex-row items-center gap-2 mb-2">
+                    <View className="bg-primary px-2.5 py-2 rounded-full flex-row items-center gap-1">
+                      <AppIcon name="star.fill" tintColor="#fff" size={10} />
+                      <Text className="text-white text-[9px] font-black uppercase tracking-widest">
+                        Top Performer
                       </Text>
-                      <View className="flex-row gap-1.5">
-                        {topPerformer.form.map((res, index) => (
-                          <View
-                            key={index}
-                            className={`w-6 h-6 items-center justify-center rounded-full ${
-                              res === "W"
-                                ? "bg-primary"
-                                : "bg-black/10 dark:bg-white/10"
-                            }`}
-                          >
-                            <Text
-                              className={`text-[10px] font-black ${
+                    </View>
+                  </View>
+
+                  {topPerformer ? (
+                    <>
+                      <Text className="text-2xl font-black text-foreground uppercase tracking-tight">
+                        {topPerformer.name}
+                      </Text>
+                      <View className="mt-3">
+                        <Text className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                          Recent Form Streak
+                        </Text>
+                        <View className="flex-row gap-1.5">
+                          {topPerformer.form.map((res, index) => (
+                            <View
+                              key={index}
+                              className={`w-6 h-6 items-center justify-center rounded-full ${
                                 res === "W"
-                                  ? "text-white"
-                                  : "text-muted-foreground"
+                                  ? "bg-primary"
+                                  : "bg-black/10 dark:bg-white/10"
                               }`}
                             >
-                              {res}
-                            </Text>
-                          </View>
-                        ))}
+                              <Text
+                                className={`text-[10px] font-black ${
+                                  res === "W"
+                                    ? "text-white"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {res}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
                       </View>
-                    </View>
-                  </View>
-
-                  <View className="absolute right-0 bottom-0 opacity-5 rotate-12 z-0">
-                    <AppIcon
-                      name="crown.fill"
-                      tintColor={theme.foreground}
-                      size={160}
-                    />
-                  </View>
+                    </>
+                  ) : (
+                    <Text className="text-base font-semibold text-muted-foreground">
+                      No top performer yet
+                    </Text>
+                  )}
                 </View>
-              )}
+
+                <View className="absolute right-0 bottom-0 opacity-5 rotate-12 z-0">
+                  <AppIcon
+                    name="crown.fill"
+                    tintColor={theme.foreground}
+                    size={160}
+                  />
+                </View>
+              </View>
+
+              {/* Tap hint */}
+              <View className="bg-primary/5 border border-primary/20 rounded-2xl px-4 py-3 flex-row items-center gap-2.5">
+                <AppIcon
+                  name="hand.tap.fill"
+                  tintColor={theme.primary}
+                  size={22}
+                />
+                <Text className="text-xs font-medium text-muted-foreground flex-1">
+                  Tap a player to mark them{" "}
+                  <Text className="font-extrabold text-primary">active</Text> —
+                  active players are automatically queued into the next
+                  available court match.
+                </Text>
+              </View>
 
               {/* Player Statistics Board */}
               <View className="gap-3">
                 <View className="flex-row justify-between items-center px-1">
-                  <Text className="text-lg font-extrabold text-foreground">
-                    Leaderboard
-                  </Text>
-                  <Text className="text-xs font-semibold text-muted-foreground">
-                    Active Season
-                  </Text>
+                  <View>
+                    <Text className="text-xl font-extrabold text-foreground">
+                      Leaderboard
+                    </Text>
+                    <Text className="text-sm font-semibold text-muted-foreground">
+                      Active Season
+                    </Text>
+                  </View>
+                  <View className="bg-primary/10 px-3 py-1.5 rounded-full border border-primary/20 flex-row items-center gap-1.5">
+                    <View className="w-2 h-2 rounded-full bg-primary" />
+                    <Text className="text-xs font-extrabold text-primary">
+                      {activePlayersCount} Active
+                    </Text>
+                  </View>
                 </View>
 
                 {/* List Header */}
@@ -311,96 +371,98 @@ export default function PlayersScreen() {
                 {/* List of Players */}
                 <View className="gap-2.5">
                   {regularPlayers.map((player) => (
-                    <View
+                    <Swipeable
                       key={player.id}
-                      className="bg-secondary rounded-3xl p-4 border border-border flex-row justify-between items-center"
-                    >
-                      <View className="flex-row items-center gap-4 flex-1">
-                        <Text className="w-8 text-sm font-black text-muted-foreground">
-                          #{player.rank}
-                        </Text>
-                        <View className="flex-1">
-                          <Text className="text-base font-extrabold text-foreground">
-                            {player.name}
-                          </Text>
-                          <Text className="text-[11px] text-muted-foreground mt-1">
-                            {player.level}
-                          </Text>
+                      renderRightActions={() => (
+                        <View className="flex-row items-stretch ml-2 gap-2 py-0.5">
+                          <Pressable
+                            onPress={() => openEditPlayerModal(player)}
+                            className="bg-white border border-border justify-center items-center w-16 rounded-3xl active:opacity-50"
+                          >
+                            <AppIcon
+                              name="pencil"
+                              tintColor="#3b82f6"
+                              size={20}
+                            />
+                          </Pressable>
+                          <Pressable
+                            onPress={() => openRemovePlayerModal(player)}
+                            className="bg-white border border-border justify-center items-center w-16 rounded-3xl active:opacity-50"
+                          >
+                            <AppIcon
+                              name="trash"
+                              tintColor="#ef4444"
+                              size={20}
+                            />
+                          </Pressable>
                         </View>
-                      </View>
-
-                      <View className="flex-row items-center gap-2">
-                        <View className="w-36 flex-row justify-end gap-1 items-center">
-                          <View className="items-end gap-1">
-                            <View className="flex-row gap-0.5">
-                              {player.form.map((res, index) => (
-                                <View
-                                  key={index}
-                                  className={`w-5 h-5 items-center justify-center rounded-full ${
-                                    res === "W"
-                                      ? "bg-primary"
-                                      : "bg-black/10 dark:bg-white/10"
-                                  }`}
-                                >
-                                  <Text
-                                    className={`text-[9px] font-black ${
-                                      res === "W"
-                                        ? "text-white"
-                                        : "text-muted-foreground"
-                                    }`}
-                                  >
-                                    {res}
-                                  </Text>
-                                </View>
-                              ))}
+                      )}
+                    >
+                      <Pressable
+                        onPress={() => handleToggleStatus(player)}
+                        className={`bg-secondary rounded-3xl p-4 border flex-row justify-between items-center ${
+                          player.status === "active"
+                            ? "border-primary/50 bg-primary/5"
+                            : "border-border"
+                        }`}
+                      >
+                        <View className="flex-row items-center gap-4 flex-1">
+                          <Text className="w-8 text-sm font-black text-muted-foreground">
+                            #{player.rank}
+                          </Text>
+                          <View className="flex-row items-center gap-3 flex-1">
+                            {/* Status Indicator */}
+                            <View
+                              className={`w-2.5 h-2.5 rounded-full ${
+                                player.status === "active"
+                                  ? "bg-primary"
+                                  : "bg-black/10 dark:bg-white/10"
+                              }`}
+                            />
+                            <View className="flex-1">
+                              <Text className="text-base font-extrabold text-foreground">
+                                {player.name}
+                              </Text>
+                              <Text className="text-[11px] text-muted-foreground mt-1">
+                                {player.level}
+                              </Text>
                             </View>
-                            <Text className="text-[9px] font-bold text-muted-foreground uppercase">
-                              {player.rate} Win rate
-                            </Text>
                           </View>
                         </View>
 
-                        <View className="relative">
-                          <Pressable
-                            onPress={() => togglePlayerOptions(player.id)}
-                            className="w-10 h-10 rounded-full bg-secondary items-center justify-center active:opacity-80"
-                          >
-                            <AppIcon
-                              name="ellipsis"
-                              tintColor={theme.foreground}
-                              size={18}
-                            />
-                          </Pressable>
-
-                          {openPlayerOptionsId === player.id && (
-                            <View className="absolute right-0 top-12 z-20 w-40 rounded-3xl bg-background border border-border shadow-lg overflow-hidden">
-                              <Pressable
-                                onPress={() => {
-                                  togglePlayerOptions(player.id);
-                                  openEditPlayerModal(player);
-                                }}
-                                className="px-4 py-4 border-b border-border"
-                              >
-                                <Text className="text-sm font-semibold text-foreground">
-                                  Update
-                                </Text>
-                              </Pressable>
-                              <Pressable
-                                onPress={() => {
-                                  togglePlayerOptions(player.id);
-                                  openRemovePlayerModal(player);
-                                }}
-                                className="px-4 py-4"
-                              >
-                                <Text className="text-sm font-semibold text-red-500">
-                                  Delete
-                                </Text>
-                              </Pressable>
+                        <View className="flex-row items-center gap-2">
+                          <View className="w-36 flex-row justify-end gap-1 items-center">
+                            <View className="items-end gap-1">
+                              <View className="flex-row gap-0.5">
+                                {player.form.map((res, index) => (
+                                  <View
+                                    key={index}
+                                    className={`w-5 h-5 items-center justify-center rounded-full ${
+                                      res === "W"
+                                        ? "bg-primary"
+                                        : "bg-black/10 dark:bg-white/10"
+                                    }`}
+                                  >
+                                    <Text
+                                      className={`text-[9px] font-black ${
+                                        res === "W"
+                                          ? "text-white"
+                                          : "text-muted-foreground"
+                                      }`}
+                                    >
+                                      {res}
+                                    </Text>
+                                  </View>
+                                ))}
+                              </View>
+                              <Text className="text-[9px] font-bold text-muted-foreground uppercase">
+                                {player.rate} Win rate
+                              </Text>
                             </View>
-                          )}
+                          </View>
                         </View>
-                      </View>
-                    </View>
+                      </Pressable>
+                    </Swipeable>
                   ))}
                 </View>
               </View>
@@ -456,53 +518,32 @@ export default function PlayersScreen() {
                   <Text className="text-sm font-semibold text-foreground">
                     Skill Level
                   </Text>
-                  <View className="relative">
-                    <Pressable
-                      onPress={() => setIsLevelDropdownOpen((open) => !open)}
-                      className="bg-secondary rounded-2xl border border-border px-4 py-4 flex-row items-center justify-between"
-                    >
-                      <Text className="text-sm text-foreground font-medium">
-                        {newPlayerLevel}
-                      </Text>
-                      <AppIcon
-                        name={
-                          isLevelDropdownOpen ? "chevron.up" : "chevron.down"
-                        }
-                        tintColor={theme.textSecondary}
-                        size={16}
-                      />
-                    </Pressable>
-
-                    {isLevelDropdownOpen && (
-                      <View className="absolute z-50 mt-2 w-full rounded-2xl bg-background border border-border shadow-lg overflow-hidden">
-                        {["Beginner", "Intermediate", "Advanced"].map(
-                          (level) => (
-                            <Pressable
-                              key={level}
-                              onPress={() => {
-                                setNewPlayerLevel(
-                                  level as
-                                    | "Beginner"
-                                    | "Intermediate"
-                                    | "Advanced",
-                                );
-                                setIsLevelDropdownOpen(false);
-                              }}
-                              className="px-4 py-4"
+                  <View className="flex-row gap-3">
+                    {(["Beginner", "Intermediate", "Advanced"] as const).map(
+                      (level) => {
+                        const isActive = newPlayerLevel === level;
+                        return (
+                          <Pressable
+                            key={level}
+                            onPress={() => setNewPlayerLevel(level)}
+                            className={`flex-1 items-center justify-center py-4 rounded-3xl border transition-all active:scale-95 ${
+                              isActive
+                                ? "bg-primary/10 border-primary"
+                                : "bg-secondary border-black/5"
+                            }`}
+                          >
+                            <Text
+                              className={`text-[10px] font-extrabold uppercase tracking-wider text-center ${
+                                isActive
+                                  ? "text-primary"
+                                  : "text-muted-foreground"
+                              }`}
                             >
-                              <Text
-                                className={`text-sm font-medium ${
-                                  newPlayerLevel === level
-                                    ? "text-primary"
-                                    : "text-foreground"
-                                }`}
-                              >
-                                {level}
-                              </Text>
-                            </Pressable>
-                          ),
-                        )}
-                      </View>
+                              {level}
+                            </Text>
+                          </Pressable>
+                        );
+                      },
                     )}
                   </View>
                 </View>
@@ -529,62 +570,39 @@ export default function PlayersScreen() {
           onPress={closeEditPlayerModal}
         >
           <Pressable
-            className="w-full max-w-md rounded-[28px] bg-background p-6 shadow-lg"
+            className="w-full max-w-md rounded-[28px] bg-background p-6"
             onPress={(e) => e.stopPropagation()}
           >
-            <Text className="text-lg font-extrabold text-foreground mb-2">
-              Update Skill Level
-            </Text>
-            <Text className="text-sm text-muted-foreground mb-4">
-              {playerToEdit?.name}
+            <Text className="text-lg font-medium text-foreground mb-6">
+              Update Skill Level for{" "}
+              <Text className="font-extrabold">{playerToEdit?.name}</Text>
             </Text>
 
             <View className="gap-2">
-              <Text className="text-sm font-semibold text-foreground">
-                Selected Level
-              </Text>
-              <View className="relative">
-                <Pressable
-                  onPress={() => setIsEditLevelDropdownOpen((open) => !open)}
-                  className="bg-secondary rounded-2xl border border-border px-4 py-4 flex-row items-center justify-between"
-                >
-                  <Text className="text-sm text-foreground font-medium">
-                    {editPlayerLevel}
-                  </Text>
-                  <AppIcon
-                    name={
-                      isEditLevelDropdownOpen ? "chevron.up" : "chevron.down"
-                    }
-                    tintColor={theme.textSecondary}
-                    size={16}
-                  />
-                </Pressable>
-
-                {isEditLevelDropdownOpen && (
-                  <View className="absolute z-50 mt-2 w-full rounded-2xl bg-background border border-border shadow-lg overflow-hidden">
-                    {["Beginner", "Intermediate", "Advanced"].map((level) => (
+              <View className="flex-row gap-3">
+                {(["Beginner", "Intermediate", "Advanced"] as const).map(
+                  (level) => {
+                    const isActive = editPlayerLevel === level;
+                    return (
                       <Pressable
                         key={level}
-                        onPress={() => {
-                          setEditPlayerLevel(
-                            level as "Beginner" | "Intermediate" | "Advanced",
-                          );
-                          setIsEditLevelDropdownOpen(false);
-                        }}
-                        className="px-4 py-4"
+                        onPress={() => setEditPlayerLevel(level)}
+                        className={`flex-1 items-center justify-center py-4 rounded-3xl border transition-all active:scale-95 ${
+                          isActive
+                            ? "bg-primary/10 border-primary"
+                            : "bg-secondary border-black/5"
+                        }`}
                       >
                         <Text
-                          className={`text-sm font-medium ${
-                            editPlayerLevel === level
-                              ? "text-primary"
-                              : "text-foreground"
+                          className={`text-[10px] font-extrabold uppercase tracking-wider text-center ${
+                            isActive ? "text-primary" : "text-muted-foreground"
                           }`}
                         >
                           {level}
                         </Text>
                       </Pressable>
-                    ))}
-                  </View>
+                    );
+                  },
                 )}
               </View>
             </View>
@@ -620,7 +638,7 @@ export default function PlayersScreen() {
           onPress={closeRemovePlayerModal}
         >
           <Pressable
-            className="w-full max-w-md rounded-[28px] bg-background p-6 shadow-lg"
+            className="w-full max-w-md rounded-[28px] bg-background p-6"
             onPress={(e) => e.stopPropagation()}
           >
             <Text className="text-lg font-extrabold text-foreground mb-2">

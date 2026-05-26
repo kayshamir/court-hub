@@ -1,359 +1,327 @@
+import { CourtCanvas } from "@/components/court-preview";
 import { AppIcon } from "@/components/ui/icon";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { DBCourt } from "@/db/schema";
 import { useTheme } from "@/hooks/use-theme";
 import { getCourts } from "@/services/database";
+import { endSession, fetchActivePlayers } from "@/services/player-service";
 import {
-  getCourtMatch,
-  INITIAL_POOL,
-  MOCK_COURTS,
-  reorderWaitingPool,
-  shuffleWaitingPool,
+  getPairingMode,
+  setPairingMode,
+  subscribeToPairingMode,
+  subscribeToQueue,
+  autoAssignMatchupsToEmptyCourts,
+  clearAllPools,
+  rebuildGlobalQueue,
+  manualAssignCourt,
 } from "@/services/queue-service";
-import { Team } from "@/types/queue";
+import { getGlobalQueue, getActiveMatchups } from "@/services/database";
+import { SportType } from "@/types/court";
+import { PairingMode, Player } from "@/types/player";
+import { Matchup } from "@/types/queue";
+import { useRouter } from "expo-router";
 import React from "react";
 import {
-  Dimensions,
+  Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, {
-  runOnJS,
-  SharedValue,
-  useAnimatedStyle,
-  useDerivedValue,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-interface DraggableQueueItemProps {
-  item: Team;
-  initialIndex: number;
-  totalItems: number;
-  spacing: number;
-  onDragStart: () => void;
-  onDragEnd: (newOrder: number[]) => void;
-  activeId: SharedValue<number | null>;
-  setActiveId: (id: number | null) => void;
-  order: SharedValue<number[]>;
-}
-
-function DraggableQueueItem({
-  item,
-  initialIndex,
-  totalItems,
-  spacing,
-  onDragStart,
-  onDragEnd,
-  activeId,
-  setActiveId,
-  order,
-}: DraggableQueueItemProps) {
-  const theme = useTheme();
-  const translateY = useSharedValue(0);
-  const isDragging = useSharedValue(false);
-
-  const dragGesture = Gesture.Pan()
-    .activateAfterLongPress(250)
-    .onStart(() => {
-      isDragging.value = true;
-      activeId.value = item.id;
-      runOnJS(setActiveId)(item.id);
-      runOnJS(onDragStart)();
-    })
-    .onUpdate((event) => {
-      translateY.value = event.translationY;
-      const currentY = initialIndex * spacing + event.translationY;
-      const hoverIndex = Math.max(
-        0,
-        Math.min(totalItems - 1, Math.round(currentY / spacing)),
-      );
-      const currentOrderIndex = order.value.indexOf(item.id);
-      if (hoverIndex !== currentOrderIndex) {
-        const newOrder = [...order.value];
-        newOrder.splice(currentOrderIndex, 1);
-        newOrder.splice(hoverIndex, 0, item.id);
-        order.value = newOrder;
-      }
-    })
-    .onEnd(() => {
-      isDragging.value = false;
-      const targetIndex = order.value.indexOf(item.id);
-      const finalTranslateY = (targetIndex - initialIndex) * spacing;
-      translateY.value = withSpring(
-        finalTranslateY,
-        { damping: 25, stiffness: 180, mass: 0.8 },
-        (finished) => {
-          if (finished) {
-            activeId.value = null;
-            runOnJS(onDragEnd)(order.value);
-            translateY.value = 0;
-          }
-        },
-      );
-    });
-
-  const targetY = useDerivedValue(() => {
-    const targetIndex = order.value.indexOf(item.id);
-    if (activeId.value === item.id)
-      return initialIndex * spacing + translateY.value;
-    return withSpring(targetIndex * spacing, {
-      damping: 25,
-      stiffness: 180,
-      mass: 0.8,
-    });
-  });
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: targetY.value }],
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    zIndex: activeId.value === item.id ? 999 : 1,
-    elevation: activeId.value === item.id ? 5 : 0,
-    opacity: activeId.value === item.id ? 0.9 : 1,
-  }));
-
-  return (
-    <GestureDetector gesture={dragGesture}>
-      <Animated.View style={[animatedStyle, { height: 68 }]}>
-        <View className="bg-secondary rounded-3xl p-4 border border-border flex-row justify-between items-center flex-1">
-          <View className="flex-row items-center gap-4 flex-1">
-            <View className="w-9 h-9 rounded-full bg-primary/10 items-center justify-center">
-              <Text className="text-xs font-black text-primary">
-                #{item.position}
-              </Text>
-            </View>
-            <View className="flex-1">
-              <Text className="text-sm font-bold text-foreground">
-                {item.players.join(" & ")}
-              </Text>
-              <Text className="text-sm font-semibold text-muted-foreground">
-                Waiting
-              </Text>
-            </View>
-          </View>
-          <Pressable className="p-1 active:opacity-50">
-            <AppIcon
-              name="line.3.horizontal"
-              tintColor={theme.foreground}
-              size={16}
-            />
-          </Pressable>
-        </View>
-      </Animated.View>
-    </GestureDetector>
-  );
-}
-
-const SCREEN_W = Dimensions.get("window").width;
-const CARD_W = SCREEN_W - 64;
-const SNAP = CARD_W + 16;
-
-function MatchRow({
-  label,
-  teamA,
-  teamB,
-  accent,
-}: {
-  label: string;
-  teamA: string[] | null;
-  teamB: string[] | null;
-  accent?: boolean;
-}) {
-  if (!teamA || !teamB)
-    return (
-      <View className="bg-background/40 rounded-2xl px-3 py-2.5 items-center">
-        <Text className="text-[10px] text-muted-foreground font-semibold">
-          Waiting for teams…
-        </Text>
-      </View>
-    );
-  return (
-    <View className="flex-row items-center bg-background/60 rounded-2xl px-3 py-2.5 gap-2">
-      <View className="flex-1">
-        <Text
-          className={`text-sm font-semibold mb-0.5 ${accent ? "text-red-500" : "text-muted-foreground"}`}
-        >
-          Team A
-        </Text>
-        <Text
-          className="text-xs font-extrabold text-foreground"
-          numberOfLines={1}
-        >
-          {teamA.join(" & ")}
-        </Text>
-      </View>
-      <Text className="text-[10px] font-black text-muted-foreground/30">
-        VS
-      </Text>
-      <View className="flex-1 items-end">
-        <Text
-          className={`text-sm font-semibold mb-0.5 ${accent ? "text-blue-500" : "text-muted-foreground"}`}
-        >
-          Team B
-        </Text>
-        <Text
-          className="text-xs font-extrabold text-foreground text-right"
-          numberOfLines={1}
-        >
-          {teamB.join(" & ")}
-        </Text>
-      </View>
-    </View>
-  );
-}
 
 function CourtCard({
   court,
-  currentA,
-  currentB,
-  nextA,
-  nextB,
-  isActive,
+  currentMatch,
+  onPressScore,
+  onAssign,
+  isManualMode,
 }: {
   court: DBCourt;
-  currentA: string[] | null;
-  currentB: string[] | null;
-  nextA: string[] | null;
-  nextB: string[] | null;
-  isActive: boolean;
+  currentMatch: Matchup | undefined;
+  onPressScore: () => void;
+  onAssign?: () => void;
+  isManualMode?: boolean;
 }) {
+  const hasMatch = !!currentMatch;
+  const matchType = court.matchType;
+  const theme = useTheme();
+
   return (
-    <View
-      style={{ width: isActive ? CARD_W + 16 : CARD_W - 16 }}
-      className={`bg-secondary rounded-3xl p-4 gap-4 ${
-        isActive ? "elevation-10" : ""
-      }`}
+    <Pressable
+      className="bg-secondary rounded-[32px] p-5 border border-border gap-5 mb-5 w-full max-w-[800px] self-center active:scale-[0.98] transition-transform"
+      onPress={onPressScore}
     >
       {/* Header */}
       <View className="flex-row items-center justify-between">
-        <Text className="text-sm font-black text-foreground">{court.name}</Text>
-        <View
-          className={`px-2.5 py-1 rounded-full ${isActive ? "bg-primary" : "bg-primary/10"}`}
-        >
-          <Text
-            className={`text-sm font-bold ${isActive ? "text-white" : "text-primary"}`}
-          >
-            {court.sport}
-          </Text>
+        <View className="flex-row items-center gap-3">
+          <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center">
+            <AppIcon name="sportscourt.fill" tintColor="#C1121F" size={18} />
+          </View>
+          <View>
+            <Text className="text-lg font-black text-foreground">
+              {court.name}
+            </Text>
+            <Text className="text-xs font-semibold text-muted-foreground">
+              {court.sport} • {court.matchType}
+            </Text>
+          </View>
         </View>
+
+        {!hasMatch && (
+          <View className="bg-muted-foreground/10 px-4 py-2 rounded-full">
+            <Text className="text-muted-foreground text-xs font-extrabold uppercase tracking-wide">
+              Empty
+            </Text>
+          </View>
+        )}
       </View>
 
-      {/* Current Match */}
-      <View className="gap-2">
-        <View className="flex-row items-center gap-2">
-          <View className="w-1.5 h-1.5 rounded-full bg-green-500" />
-          <Text className="text-sm font-extrabold text-muted-foreground">
-            Current Match
-          </Text>
-        </View>
-        <View className="w-full aspect-[2.5/1] bg-[#2D5A27] rounded-2xl border border-white/20 relative overflow-hidden mb-1">
-          <View className="absolute left-1/2 top-0 bottom-0 w-[1.5px] bg-white/60" />
-          <View className="absolute top-2 bottom-2 left-2 right-2 border border-white/30 rounded" />
-          {currentA && currentB ? (
+      {/* Court board visualizer */}
+      <View className="overflow-hidden rounded-2xl">
+        <CourtCanvas
+          sportType={court.sport.toLowerCase() as SportType}
+          aspectRatio={2.2 / 1}
+        >
+          {hasMatch ? (
             <>
+              {/* Left Half (Team A) */}
               <View
                 style={{ width: "50%" }}
-                className="absolute left-0 top-0 bottom-0 justify-center items-center gap-1.5"
+                className="absolute left-0 top-0 bottom-0 justify-center items-center gap-4 flex-row"
               >
-                {currentA.map((p, i) => (
-                  <View key={i} className="bg-red-500 px-2 py-1 rounded-full">
-                    <Text className="text-xs font-bold text-white">
-                      {p.split(" ")[0]}
+                {matchType.toLowerCase() === "doubles" &&
+                currentMatch.teamA.length > 1 ? (
+                  <>
+                    <View className="bg-red-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                      <Text className="text-[10px] font-black text-white">
+                        {currentMatch.teamA[0].name}
+                      </Text>
+                    </View>
+                    <View className="bg-red-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                      <Text className="text-[10px] font-black text-white">
+                        {currentMatch.teamA[1].name}
+                      </Text>
+                    </View>
+                  </>
+                ) : currentMatch.teamA.length > 0 ? (
+                  <View className="bg-red-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                    <Text className="text-[10px] font-black text-white">
+                      {currentMatch.teamA[0].name}
                     </Text>
                   </View>
-                ))}
+                ) : null}
               </View>
+
+              {/* Right Half (Team B) */}
               <View
                 style={{ width: "50%" }}
-                className="absolute right-0 top-0 bottom-0 justify-center items-center gap-1.5"
+                className="absolute right-0 top-0 bottom-0 justify-center items-center gap-4 flex-row"
               >
-                {currentB.map((p, i) => (
-                  <View key={i} className="bg-blue-500 px-2 py-1 rounded-full">
-                    <Text className="text-xs font-bold text-white">
-                      {p.split(" ")[0]}
+                {matchType.toLowerCase() === "doubles" &&
+                currentMatch.teamB.length > 1 ? (
+                  <>
+                    <View className="bg-blue-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                      <Text className="text-[10px] font-black text-white">
+                        {currentMatch.teamB[0].name}
+                      </Text>
+                    </View>
+                    <View className="bg-blue-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                      <Text className="text-[10px] font-black text-white">
+                        {currentMatch.teamB[1].name}
+                      </Text>
+                    </View>
+                  </>
+                ) : currentMatch.teamB.length > 0 ? (
+                  <View className="bg-blue-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                    <Text className="text-[10px] font-black text-white">
+                      {currentMatch.teamB[0].name}
                     </Text>
                   </View>
-                ))}
+                ) : null}
               </View>
             </>
           ) : (
-            <View className="absolute inset-0 items-center justify-center">
+            <View className="absolute inset-0 items-center justify-center bg-black/10">
               <Text className="text-sm font-bold text-white/50">
-                Court Empty
+                Court Available
               </Text>
             </View>
           )}
-        </View>
-        <MatchRow label="current" teamA={currentA} teamB={currentB} accent />
+        </CourtCanvas>
       </View>
 
-      {/* Next Matchup */}
-      <View className="gap-2">
-        <Text className="text-sm font-semibold text-muted">Next Matchup</Text>
-        <MatchRow label="next" teamA={nextA} teamB={nextB} />
-      </View>
-    </View>
+      {isManualMode && (
+        <Pressable
+          onPress={onAssign}
+          className="bg-primary/10 border border-primary/30 rounded-2xl p-3 flex-row items-center justify-center gap-2 active:opacity-70"
+        >
+          <AppIcon name="person.badge.plus" tintColor={theme.primary} size={14} />
+          <Text className="text-xs font-extrabold text-primary">
+            {hasMatch ? "Reassign Players" : "Assign Players"}
+          </Text>
+        </Pressable>
+      )}
+    </Pressable>
   );
 }
 
 export default function QueueScreen() {
+  const router = useRouter();
   const safeAreaInsets = useSafeAreaInsets();
   const theme = useTheme();
 
   const [courts, setCourts] = React.useState<DBCourt[]>([]);
-  const [pool, setPool] = React.useState<Team[]>(INITIAL_POOL);
-  const [scrollEnabled, setScrollEnabled] = React.useState(true);
-  const [activeDragId, setActiveDragId] = React.useState<number | null>(null);
-  const [activeCardIndex, setActiveCardIndex] = React.useState(0);
+  const [pairingModeState, setPairingModeState] =
+    React.useState<PairingMode>(getPairingMode());
+  const [globalQueue, setGlobalQueue] = React.useState<Matchup[]>([]);
+  const [activeMatchups, setActiveMatchups] = React.useState<Map<number, Matchup>>(new Map());
+  const [isEndSessionModalVisible, setIsEndSessionModalVisible] =
+    React.useState(false);
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
-  const activeId = useSharedValue<number | null>(null);
-  const order = useSharedValue<number[]>([]);
+  // Manual assignment mode
+  const [assignMode, setAssignMode] = React.useState<"auto" | "manual">("auto");
+  const assignModeRef = React.useRef<"auto" | "manual">("auto");
+  const [assignModalCourt, setAssignModalCourt] = React.useState<DBCourt | null>(null);
+  const [activePlayers, setActivePlayers] = React.useState<Player[]>([]);
+  const [playerAssignments, setPlayerAssignments] = React.useState<Map<number, "A" | "B">>(new Map());
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const dbCourts = await getCourts();
-        setCourts(dbCourts.length > 0 ? dbCourts : MOCK_COURTS);
-      } catch {
-        setCourts(MOCK_COURTS);
+  const loadData = React.useCallback(async () => {
+    try {
+      const [dbCourts, dbGlobalQueue, dbActiveMatchups, dbActivePlayers] = await Promise.all([
+        getCourts(),
+        getGlobalQueue(),
+        getActiveMatchups(),
+        fetchActivePlayers(),
+      ]);
+
+      setCourts(dbCourts);
+      setActivePlayers(dbActivePlayers);
+
+      const parsedQueue = dbGlobalQueue.map(m => ({
+        id: m.id.toString(),
+        teamA: JSON.parse(m.team_a),
+        teamB: JSON.parse(m.team_b),
+      }));
+      setGlobalQueue(parsedQueue);
+
+      const parsedActive = new Map<number, Matchup>();
+      dbActiveMatchups.forEach(m => {
+        if (m.courtId) {
+          parsedActive.set(m.courtId, {
+            id: m.id.toString(),
+            teamA: JSON.parse(m.team_a),
+            teamB: JSON.parse(m.team_b),
+          });
+        }
+      });
+      setActiveMatchups(parsedActive);
+
+      // Auto-rebuild queue when it's empty and no games are in progress
+      if (parsedQueue.length === 0 && dbActiveMatchups.length === 0) {
+        if (dbActivePlayers.length >= 2) {
+          await rebuildGlobalQueue(dbCourts);
+          return;
+        }
       }
-    })();
+
+      if (assignModeRef.current === "auto") {
+        await autoAssignMatchupsToEmptyCourts(dbCourts);
+      }
+    } catch (error) {
+      console.error("Error loading queue data:", error);
+    }
   }, []);
 
-  const assignedCount = courts.length * 4;
-  const waitingPool = pool.slice(assignedCount);
+  const handleRefresh = React.useCallback(async () => {
+    setIsRefreshing(true);
+    await loadData();
+    setIsRefreshing(false);
+  }, [loadData]);
 
   React.useEffect(() => {
-    order.value = waitingPool.map((t) => t.id);
-  }, [waitingPool.length]);
+    loadData();
+  }, [pairingModeState]);
 
-  const handleDragEnd = React.useCallback(
-    (newOrder: number[]) => {
-      const updated = reorderWaitingPool(
-        pool,
-        newOrder,
-        assignedCount,
-        waitingPool,
-      );
-      setPool(updated);
-      setActiveDragId(null);
-      setScrollEnabled(true);
-    },
-    [pool, waitingPool, assignedCount],
-  );
+  React.useEffect(() => {
+    const unsubQueue = subscribeToQueue(() => {
+      loadData();
+    });
 
-  const handleShuffle = () => {
-    const updated = shuffleWaitingPool(pool, assignedCount);
-    setPool(updated);
+    const unsubPairing = subscribeToPairingMode((newMode) => {
+      setPairingModeState(newMode);
+    });
+
+    return () => {
+      unsubQueue();
+      unsubPairing();
+    };
+  }, []);
+
+  const handleSetAssignMode = (mode: "auto" | "manual") => {
+    assignModeRef.current = mode;
+    setAssignMode(mode);
+    loadData();
   };
+
+  const handleOpenAssignModal = (court: DBCourt) => {
+    setAssignModalCourt(court);
+    const current = activeMatchups.get(court.id);
+    const pre = new Map<number, "A" | "B">();
+    if (current) {
+      current.teamA.forEach((p: Player) => pre.set(p.id, "A"));
+      current.teamB.forEach((p: Player) => pre.set(p.id, "B"));
+    }
+    setPlayerAssignments(pre);
+  };
+
+  const togglePlayerAssignment = (player: Player) => {
+    if (!assignModalCourt) return;
+    const maxPerTeam = assignModalCourt.matchType.toLowerCase() === "doubles" ? 2 : 1;
+    const current = playerAssignments.get(player.id);
+    const aCount = [...playerAssignments.values()].filter(v => v === "A").length;
+    const bCount = [...playerAssignments.values()].filter(v => v === "B").length;
+    const next = new Map(playerAssignments);
+    if (current === undefined) {
+      if (aCount < maxPerTeam) next.set(player.id, "A");
+      else if (bCount < maxPerTeam) next.set(player.id, "B");
+    } else if (current === "A") {
+      if (bCount < maxPerTeam) next.set(player.id, "B");
+      else next.delete(player.id);
+    } else {
+      next.delete(player.id);
+    }
+    setPlayerAssignments(next);
+  };
+
+  const handleConfirmAssignment = async () => {
+    if (!assignModalCourt) return;
+    const teamA = activePlayers.filter(p => playerAssignments.get(p.id) === "A");
+    const teamB = activePlayers.filter(p => playerAssignments.get(p.id) === "B");
+    await manualAssignCourt(assignModalCourt.id, teamA, teamB);
+    setAssignModalCourt(null);
+    setPlayerAssignments(new Map());
+  };
+
+  const handleEndSession = async () => {
+    try {
+      await endSession();
+      clearAllPools();
+      setIsEndSessionModalVisible(false);
+      await loadData();
+    } catch (error) {
+      console.error("Error ending session:", error);
+    }
+  };
+
+  const maxPerTeam = assignModalCourt?.matchType.toLowerCase() === "doubles" ? 2 : 1;
+  const teamACount = [...playerAssignments.values()].filter(v => v === "A").length;
+  const teamBCount = [...playerAssignments.values()].filter(v => v === "B").length;
+  const isAssignReady = teamACount === maxPerTeam && teamBCount === maxPerTeam;
+  const remainingToSelect = maxPerTeam * 2 - teamACount - teamBCount;
 
   const insets = {
     ...safeAreaInsets,
@@ -369,17 +337,24 @@ export default function QueueScreen() {
   return (
     <View className="flex-1 bg-background">
       <ScrollView
-        scrollEnabled={scrollEnabled}
         className="flex-1"
         contentContainerStyle={[
           { paddingTop: safeAreaInsets.top + Spacing.two },
           contentPlatformStyle,
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
       >
-        {/* Header */}
         <View className="px-5 max-w-[800px] w-full self-center">
-          <View className="flex-row justify-between items-center py-2 mb-6">
+          {/* Header */}
+          <View className="flex-row justify-between items-center py-2 mb-4">
             <View>
               <Text className="text-3xl font-extrabold tracking-tight text-foreground">
                 Court Queue
@@ -388,112 +363,338 @@ export default function QueueScreen() {
                 Live Rotation
               </Text>
             </View>
-            <Pressable
-              onPress={handleShuffle}
-              className="bg-secondary px-4 py-2 rounded-full flex-row items-center gap-1.5 border border-border active:opacity-70"
-            >
-              <AppIcon name="shuffle" tintColor={theme.foreground} size={12} />
-              <Text className="text-sm font-bold text-foreground">Shuffle</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Horizontal Court Cards */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={CARD_W + 12}
-          decelerationRate="fast"
-          snapToAlignment="center"
-          onScroll={(event) => {
-            const contentOffset = event.nativeEvent.contentOffset.x;
-            const index = Math.round(contentOffset / (CARD_W + 12));
-            if (
-              index !== activeCardIndex &&
-              index >= 0 &&
-              index < courts.length
-            ) {
-              setActiveCardIndex(index);
-            }
-          }}
-          scrollEventThrottle={16}
-          contentContainerStyle={{
-            paddingHorizontal: 20,
-            gap: 12,
-            paddingBottom: 4,
-          }}
-          className="mb-3"
-        >
-          {courts.map((court, idx) => {
-            const { currentA, currentB, nextA, nextB } = getCourtMatch(
-              pool,
-              idx,
-            );
-            return (
-              <CourtCard
-                key={court.id}
-                court={court}
-                currentA={currentA}
-                currentB={currentB}
-                nextA={nextA}
-                nextB={nextB}
-                isActive={idx === activeCardIndex}
-              />
-            );
-          })}
-        </ScrollView>
-
-        {/* Indicator Dots */}
-        <View className="flex-row justify-center gap-1.5 mb-6">
-          {courts.map((_, idx) => (
-            <View
-              key={idx}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                idx === activeCardIndex
-                  ? "w-4 bg-primary"
-                  : "w-1.5 bg-muted-foreground/30"
-              }`}
-            />
-          ))}
-        </View>
-
-        {/* Waiting Pool */}
-        <View className="px-5 max-w-[800px] w-full self-center gap-3">
-          <View className="flex-row justify-between items-center">
-            <Text className="text-lg font-extrabold text-foreground">
-              Waiting Pool
-            </Text>
-            <Text className="text-xs font-bold text-primary">
-              {waitingPool.length} Teams
-            </Text>
-          </View>
-
-          {waitingPool.length === 0 ? (
-            <View className="bg-secondary/40 rounded-3xl p-6 border border-dashed border-border items-center py-10">
-              <Text className="text-sm font-bold text-muted-foreground">
-                No teams waiting
-              </Text>
-            </View>
-          ) : (
-            <View style={{ height: waitingPool.length * 80 - 12 }}>
-              {waitingPool.map((item, idx) => (
-                <DraggableQueueItem
-                  key={item.id}
-                  item={item}
-                  initialIndex={idx}
-                  totalItems={waitingPool.length}
-                  spacing={80}
-                  onDragStart={() => setScrollEnabled(false)}
-                  onDragEnd={handleDragEnd}
-                  activeId={activeId}
-                  setActiveId={setActiveDragId}
-                  order={order}
+            <View className="flex-row items-center gap-3">
+              <Pressable
+                onPress={() => setIsEndSessionModalVisible(true)}
+                className="bg-red-500/10 w-10 h-10 rounded-full items-center justify-center border border-red-500/20 active:opacity-70"
+              >
+                <AppIcon
+                  name="stop.circle.fill"
+                  tintColor="#ef4444"
+                  size={16}
                 />
-              ))}
+              </Pressable>
+              <Pressable
+                onPress={() => router.push("/create-court")}
+                className="bg-primary w-10 h-10 rounded-full items-center justify-center active:opacity-80"
+              >
+                <AppIcon name="plus" tintColor="#fff" size={16} />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Assignment Mode Toggle */}
+          <View className="flex-row gap-2 mb-4">
+            {([
+              { id: "auto", label: "Auto Queue", icon: "arrow.triangle.2.circlepath", desc: "Queue assigns players" },
+              { id: "manual", label: "Manual Select", icon: "hand.tap.fill", desc: "Pick players per court" },
+            ] as const).map((mode) => {
+              const isActive = assignMode === mode.id;
+              return (
+                <Pressable
+                  key={mode.id}
+                  onPress={() => handleSetAssignMode(mode.id)}
+                  className={`flex-1 py-3.5 px-3 rounded-3xl border items-center gap-1 active:opacity-80 ${
+                    isActive ? "bg-primary/10 border-primary/50" : "bg-secondary border-border"
+                  }`}
+                >
+                  <AppIcon
+                    name={mode.icon}
+                    tintColor={isActive ? theme.primary : theme.textSecondary}
+                    size={16}
+                  />
+                  <Text className={`text-xs font-extrabold ${isActive ? "text-primary" : "text-foreground"}`}>
+                    {mode.label}
+                  </Text>
+                  <Text className={`text-[9px] font-medium text-center ${isActive ? "text-primary/70" : "text-muted-foreground"}`}>
+                    {mode.desc}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Pairing Mode Selector — only in auto mode */}
+          {assignMode === "auto" && (
+            <View className="bg-secondary rounded-[32px] p-5 border border-border gap-4 mb-6">
+              <View>
+                <Text className="text-lg font-black text-foreground tracking-tight">
+                  Pairing Mode
+                </Text>
+                <Text className="text-xs font-semibold text-muted-foreground mt-0.5">
+                  Select how players are grouped
+                </Text>
+              </View>
+              <View className="flex-row gap-2">
+                {([
+                  { id: "same_level", label: "Same Level", icon: "person.3.fill", desc: "Similar skills" },
+                  { id: "balanced_mix", label: "Balanced Mix", icon: "equal", desc: "Even teams" },
+                  { id: "random", label: "Random", icon: "dice.fill", desc: "Any combination" },
+                ] as const).map((mode) => {
+                  const isActive = pairingModeState === mode.id;
+                  return (
+                    <Pressable
+                      key={mode.id}
+                      onPress={async () => {
+                        setPairingMode(mode.id as PairingMode);
+                        await rebuildGlobalQueue(courts);
+                      }}
+                      className={`flex-1 py-4 px-2 rounded-3xl border items-center justify-center transition-all ${
+                        isActive ? "bg-primary/10 border-primary/50" : "bg-background border-border/50"
+                      }`}
+                    >
+                      <View className={`w-8 h-8 rounded-full items-center justify-center mb-2 ${isActive ? "bg-primary/20" : "bg-secondary border border-border/50"}`}>
+                        <AppIcon name={mode.icon as any} tintColor={isActive ? theme.primary : theme.textSecondary} size={16} />
+                      </View>
+                      <Text className={`text-[11px] font-bold text-center ${isActive ? "text-primary" : "text-foreground"}`}>
+                        {mode.label}
+                      </Text>
+                      <Text className={`text-[9px] font-medium text-center mt-0.5 px-1 ${isActive ? "text-primary/70" : "text-muted-foreground"}`}>
+                        {mode.desc}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           )}
         </View>
+
+        {/* Vertical Court Cards list */}
+        <View className="px-5">
+          {courts.length === 0 ? (
+            <View className="py-12 items-center justify-center border border-dashed border-border rounded-3xl bg-secondary/50">
+              <Text className="text-muted-foreground font-medium">
+                No courts available.
+              </Text>
+            </View>
+          ) : (
+            courts.map((court) => {
+              const currentMatch = activeMatchups.get(court.id);
+              return (
+                <CourtCard
+                  key={court.id}
+                  court={court}
+                  currentMatch={currentMatch}
+                  isManualMode={assignMode === "manual"}
+                  onAssign={() => handleOpenAssignModal(court)}
+                  onPressScore={() => {
+                    router.push({
+                      pathname: "/score",
+                      params: {
+                        courtId: court.id.toString(),
+                        courtName: court.name,
+                        sport: court.sport,
+                        matchType: court.matchType,
+                        pairingMode: pairingModeState,
+                      },
+                    });
+                  }}
+                />
+              );
+            })
+          )}
+
+          {/* Global Queue — shown below all courts */}
+          <View className="mt-2 mb-6 bg-secondary rounded-[32px] p-5 border border-border">
+            <Text className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest mb-4">
+              Match Queue
+            </Text>
+            {globalQueue.length === 0 ? (
+              <Text className="text-xs font-medium text-muted-foreground">
+                No matchups scheduled.
+              </Text>
+            ) : (
+              <View className="gap-2.5">
+                {globalQueue.map((match, mIdx) => {
+                  const isNext = mIdx === 0;
+                  return (
+                    <View
+                      key={match.id}
+                      className={`flex-row justify-between items-center p-3 rounded-2xl border ${
+                        isNext
+                          ? "bg-primary/5 border-primary/20"
+                          : "bg-background border-border"
+                      }`}
+                    >
+                      <View className="flex-row items-center gap-3">
+                        <View
+                          className={`w-6 h-6 rounded-full items-center justify-center ${
+                            isNext ? "bg-foreground/10" : "bg-secondary"
+                          }`}
+                        >
+                          <Text className="text-[10px] font-black text-muted-foreground">
+                            {mIdx + 1}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text className="text-xs font-black text-foreground">
+                            {match.teamA.map((p) => p.name).join(" & ")}{" "}
+                            <Text className="text-muted-foreground font-medium text-[10px]">
+                              vs
+                            </Text>{" "}
+                            {match.teamB.map((p) => p.name).join(" & ")}
+                          </Text>
+                          <Text className="text-[10px] font-semibold text-muted-foreground mt-0.5">
+                            {isNext ? "Next Matchup" : `Upcoming #${mIdx + 1}`}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </View>
       </ScrollView>
+
+      {/* Manual Player Assignment Modal */}
+      <Modal
+        visible={!!assignModalCourt}
+        animationType="slide"
+        transparent
+        onRequestClose={() => { setAssignModalCourt(null); setPlayerAssignments(new Map()); }}
+      >
+        <Pressable
+          className="flex-1 justify-end bg-black/50"
+          onPress={() => { setAssignModalCourt(null); setPlayerAssignments(new Map()); }}
+        >
+          <Pressable className="bg-background rounded-t-[32px] p-6 gap-5" onPress={e => e.stopPropagation()}>
+            {/* Modal header */}
+            <View className="flex-row justify-between items-center">
+              <View>
+                <Text className="text-xl font-extrabold text-foreground">Assign Players</Text>
+                <Text className="text-xs font-semibold text-muted-foreground">
+                  {assignModalCourt?.name} · {assignModalCourt?.matchType} ({maxPerTeam}v{maxPerTeam})
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => { setAssignModalCourt(null); setPlayerAssignments(new Map()); }}
+                className="w-8 h-8 rounded-full bg-secondary items-center justify-center active:opacity-70"
+              >
+                <AppIcon name="xmark" tintColor={theme.foreground} size={14} />
+              </Pressable>
+            </View>
+
+            {/* Team counters */}
+            <View className="flex-row gap-3">
+              <View className={`flex-1 rounded-2xl p-3 items-center border ${teamACount === maxPerTeam ? "bg-[#C1121F]/10 border-[#C1121F]/40" : "bg-secondary border-border"}`}>
+                <Text className="text-[10px] font-extrabold text-[#C1121F] uppercase tracking-wider">Team A</Text>
+                <Text className="text-2xl font-black text-foreground">{teamACount}/{maxPerTeam}</Text>
+              </View>
+              <View className={`flex-1 rounded-2xl p-3 items-center border ${teamBCount === maxPerTeam ? "bg-[#1E3A8A]/10 border-[#1E3A8A]/40" : "bg-secondary border-border"}`}>
+                <Text className="text-[10px] font-extrabold text-[#1E3A8A] uppercase tracking-wider">Team B</Text>
+                <Text className="text-2xl font-black text-foreground">{teamBCount}/{maxPerTeam}</Text>
+              </View>
+            </View>
+
+            <Text className="text-[10px] font-medium text-muted-foreground -mt-2">
+              Tap a player to assign → Team A → Team B → remove
+            </Text>
+
+            {/* Player list */}
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 280 }}>
+              <View className="gap-2">
+                {activePlayers.length === 0 ? (
+                  <Text className="text-xs text-muted-foreground text-center py-6">
+                    No active players. Activate players in the Players tab first.
+                  </Text>
+                ) : (
+                  activePlayers.map(player => {
+                    const assignment = playerAssignments.get(player.id);
+                    return (
+                      <Pressable
+                        key={player.id}
+                        onPress={() => togglePlayerAssignment(player)}
+                        className={`flex-row items-center justify-between p-3.5 rounded-2xl border active:opacity-70 ${
+                          assignment === "A"
+                            ? "bg-[#C1121F]/10 border-[#C1121F]/30"
+                            : assignment === "B"
+                            ? "bg-[#1E3A8A]/10 border-[#1E3A8A]/30"
+                            : "bg-secondary border-border"
+                        }`}
+                      >
+                        <View>
+                          <Text className="text-sm font-extrabold text-foreground">{player.name}</Text>
+                          <Text className="text-[10px] font-medium text-muted-foreground">{player.level}</Text>
+                        </View>
+                        <View className={`px-3 py-1 rounded-full ${
+                          assignment === "A" ? "bg-[#C1121F]" :
+                          assignment === "B" ? "bg-[#1E3A8A]" :
+                          "bg-muted-foreground/20"
+                        }`}>
+                          <Text className="text-[10px] font-black text-white">
+                            {assignment === "A" ? "Team A" : assignment === "B" ? "Team B" : "Tap"}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+            </ScrollView>
+
+            {/* Confirm button */}
+            <Pressable
+              onPress={handleConfirmAssignment}
+              disabled={!isAssignReady}
+              className={`py-4 rounded-full items-center justify-center ${isAssignReady ? "bg-primary active:opacity-80" : "bg-muted-foreground/20"}`}
+            >
+              <Text className={`text-sm font-extrabold uppercase tracking-wider ${isAssignReady ? "text-white" : "text-muted-foreground"}`}>
+                {isAssignReady
+                  ? "Assign to Court"
+                  : `Select ${remainingToSelect} more player${remainingToSelect !== 1 ? "s" : ""}`}
+              </Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* End Session Modal */}
+      <Modal
+        visible={isEndSessionModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsEndSessionModalVisible(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/40 items-center justify-center px-6"
+          onPress={() => setIsEndSessionModalVisible(false)}
+        >
+          <Pressable
+            className="w-full max-w-md rounded-[28px] bg-background p-6"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text className="text-lg font-extrabold text-foreground mb-2">
+              End Session?
+            </Text>
+            <Text className="text-sm text-muted-foreground leading-6">
+              This will reset all active players to inactive and clear all
+              waiting pools. This action cannot be undone.
+            </Text>
+
+            <View className="flex-row justify-end gap-3 mt-6">
+              <Pressable
+                onPress={() => setIsEndSessionModalVisible(false)}
+                className="rounded-full border border-muted-foreground/30 px-4 py-3"
+              >
+                <Text className="text-sm font-semibold text-muted-foreground">
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleEndSession}
+                className="rounded-full bg-red-500 px-4 py-3 items-center justify-center"
+              >
+                <Text className="text-sm font-semibold text-white">
+                  End Session
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
