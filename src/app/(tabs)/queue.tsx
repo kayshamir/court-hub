@@ -13,10 +13,11 @@ import {
   autoAssignMatchupsToEmptyCourts,
   clearAllPools,
   rebuildGlobalQueue,
+  manualAssignCourt,
 } from "@/services/queue-service";
 import { getGlobalQueue, getActiveMatchups } from "@/services/database";
 import { SportType } from "@/types/court";
-import { PairingMode } from "@/types/player";
+import { PairingMode, Player } from "@/types/player";
 import { Matchup } from "@/types/queue";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -35,13 +36,18 @@ function CourtCard({
   court,
   currentMatch,
   onPressScore,
+  onAssign,
+  isManualMode,
 }: {
   court: DBCourt;
   currentMatch: Matchup | undefined;
   onPressScore: () => void;
+  onAssign?: () => void;
+  isManualMode?: boolean;
 }) {
   const hasMatch = !!currentMatch;
   const matchType = court.matchType;
+  const theme = useTheme();
 
   return (
     <Pressable
@@ -147,6 +153,17 @@ function CourtCard({
         </CourtCanvas>
       </View>
 
+      {isManualMode && (
+        <Pressable
+          onPress={onAssign}
+          className="bg-primary/10 border border-primary/30 rounded-2xl p-3 flex-row items-center justify-center gap-2 active:opacity-70"
+        >
+          <AppIcon name="person.badge.plus" tintColor={theme.primary} size={14} />
+          <Text className="text-xs font-extrabold text-primary">
+            {hasMatch ? "Reassign Players" : "Assign Players"}
+          </Text>
+        </Pressable>
+      )}
     </Pressable>
   );
 }
@@ -165,18 +182,29 @@ export default function QueueScreen() {
     React.useState(false);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
 
+  // Manual assignment mode
+  const [assignMode, setAssignMode] = React.useState<"auto" | "manual">("auto");
+  const assignModeRef = React.useRef<"auto" | "manual">("auto");
+  const [assignModalCourt, setAssignModalCourt] = React.useState<DBCourt | null>(null);
+  const [activePlayers, setActivePlayers] = React.useState<Player[]>([]);
+  const [playerAssignments, setPlayerAssignments] = React.useState<Map<number, "A" | "B">>(new Map());
+
   const loadData = React.useCallback(async () => {
     try {
-      const dbCourts = await getCourts();
-      setCourts(dbCourts);
+      const [dbCourts, dbGlobalQueue, dbActiveMatchups, dbActivePlayers] = await Promise.all([
+        getCourts(),
+        getGlobalQueue(),
+        getActiveMatchups(),
+        fetchActivePlayers(),
+      ]);
 
-      const dbGlobalQueue = await getGlobalQueue();
-      const dbActiveMatchups = await getActiveMatchups();
+      setCourts(dbCourts);
+      setActivePlayers(dbActivePlayers);
 
       const parsedQueue = dbGlobalQueue.map(m => ({
         id: m.id.toString(),
         teamA: JSON.parse(m.team_a),
-        teamB: JSON.parse(m.team_b)
+        teamB: JSON.parse(m.team_b),
       }));
       setGlobalQueue(parsedQueue);
 
@@ -186,7 +214,7 @@ export default function QueueScreen() {
           parsedActive.set(m.courtId, {
             id: m.id.toString(),
             teamA: JSON.parse(m.team_a),
-            teamB: JSON.parse(m.team_b)
+            teamB: JSON.parse(m.team_b),
           });
         }
       });
@@ -194,14 +222,15 @@ export default function QueueScreen() {
 
       // Auto-rebuild queue when it's empty and no games are in progress
       if (parsedQueue.length === 0 && dbActiveMatchups.length === 0) {
-        const activePlayers = await fetchActivePlayers();
-        if (activePlayers.length >= 2) {
+        if (dbActivePlayers.length >= 2) {
           await rebuildGlobalQueue(dbCourts);
-          return; // notifyQueueChanged triggers another loadData which will auto-assign
+          return;
         }
       }
 
-      await autoAssignMatchupsToEmptyCourts(dbCourts);
+      if (assignModeRef.current === "auto") {
+        await autoAssignMatchupsToEmptyCourts(dbCourts);
+      }
     } catch (error) {
       console.error("Error loading queue data:", error);
     }
@@ -232,6 +261,51 @@ export default function QueueScreen() {
     };
   }, []);
 
+  const handleSetAssignMode = (mode: "auto" | "manual") => {
+    assignModeRef.current = mode;
+    setAssignMode(mode);
+    loadData();
+  };
+
+  const handleOpenAssignModal = (court: DBCourt) => {
+    setAssignModalCourt(court);
+    const current = activeMatchups.get(court.id);
+    const pre = new Map<number, "A" | "B">();
+    if (current) {
+      current.teamA.forEach((p: Player) => pre.set(p.id, "A"));
+      current.teamB.forEach((p: Player) => pre.set(p.id, "B"));
+    }
+    setPlayerAssignments(pre);
+  };
+
+  const togglePlayerAssignment = (player: Player) => {
+    if (!assignModalCourt) return;
+    const maxPerTeam = assignModalCourt.matchType.toLowerCase() === "doubles" ? 2 : 1;
+    const current = playerAssignments.get(player.id);
+    const aCount = [...playerAssignments.values()].filter(v => v === "A").length;
+    const bCount = [...playerAssignments.values()].filter(v => v === "B").length;
+    const next = new Map(playerAssignments);
+    if (current === undefined) {
+      if (aCount < maxPerTeam) next.set(player.id, "A");
+      else if (bCount < maxPerTeam) next.set(player.id, "B");
+    } else if (current === "A") {
+      if (bCount < maxPerTeam) next.set(player.id, "B");
+      else next.delete(player.id);
+    } else {
+      next.delete(player.id);
+    }
+    setPlayerAssignments(next);
+  };
+
+  const handleConfirmAssignment = async () => {
+    if (!assignModalCourt) return;
+    const teamA = activePlayers.filter(p => playerAssignments.get(p.id) === "A");
+    const teamB = activePlayers.filter(p => playerAssignments.get(p.id) === "B");
+    await manualAssignCourt(assignModalCourt.id, teamA, teamB);
+    setAssignModalCourt(null);
+    setPlayerAssignments(new Map());
+  };
+
   const handleEndSession = async () => {
     try {
       await endSession();
@@ -242,6 +316,12 @@ export default function QueueScreen() {
       console.error("Error ending session:", error);
     }
   };
+
+  const maxPerTeam = assignModalCourt?.matchType.toLowerCase() === "doubles" ? 2 : 1;
+  const teamACount = [...playerAssignments.values()].filter(v => v === "A").length;
+  const teamBCount = [...playerAssignments.values()].filter(v => v === "B").length;
+  const isAssignReady = teamACount === maxPerTeam && teamBCount === maxPerTeam;
+  const remainingToSelect = maxPerTeam * 2 - teamACount - teamBCount;
 
   const insets = {
     ...safeAreaInsets,
@@ -303,9 +383,40 @@ export default function QueueScreen() {
             </View>
           </View>
 
-          {/* Pairing Mode Selector */}
-          <View className="bg-secondary rounded-[32px] p-5 border border-border gap-4 mb-6">
-            <View className="flex-row items-center justify-between gap-x-3 gap-y-1.5">
+          {/* Assignment Mode Toggle */}
+          <View className="flex-row gap-2 mb-4">
+            {([
+              { id: "auto", label: "Auto Queue", icon: "arrow.triangle.2.circlepath", desc: "Queue assigns players" },
+              { id: "manual", label: "Manual Select", icon: "hand.tap.fill", desc: "Pick players per court" },
+            ] as const).map((mode) => {
+              const isActive = assignMode === mode.id;
+              return (
+                <Pressable
+                  key={mode.id}
+                  onPress={() => handleSetAssignMode(mode.id)}
+                  className={`flex-1 py-3.5 px-3 rounded-3xl border items-center gap-1 active:opacity-80 ${
+                    isActive ? "bg-primary/10 border-primary/50" : "bg-secondary border-border"
+                  }`}
+                >
+                  <AppIcon
+                    name={mode.icon}
+                    tintColor={isActive ? theme.primary : theme.textSecondary}
+                    size={16}
+                  />
+                  <Text className={`text-xs font-extrabold ${isActive ? "text-primary" : "text-foreground"}`}>
+                    {mode.label}
+                  </Text>
+                  <Text className={`text-[9px] font-medium text-center ${isActive ? "text-primary/70" : "text-muted-foreground"}`}>
+                    {mode.desc}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Pairing Mode Selector — only in auto mode */}
+          {assignMode === "auto" && (
+            <View className="bg-secondary rounded-[32px] p-5 border border-border gap-4 mb-6">
               <View>
                 <Text className="text-lg font-black text-foreground tracking-tight">
                   Pairing Mode
@@ -314,73 +425,39 @@ export default function QueueScreen() {
                   Select how players are grouped
                 </Text>
               </View>
-            </View>
-            <View className="flex-row gap-2 mt-2">
-              {[
-                {
-                  id: "same_level",
-                  label: "Same Level",
-                  icon: "person.3.fill",
-                  desc: "Similar skills",
-                },
-                {
-                  id: "balanced_mix",
-                  label: "Balanced Mix",
-                  icon: "equal",
-                  desc: "Even teams",
-                },
-                {
-                  id: "random",
-                  label: "Random",
-                  icon: "dice.fill",
-                  desc: "Any combination",
-                },
-              ].map((mode) => {
-                const isActive = pairingModeState === mode.id;
-                return (
-                  <Pressable
-                    key={mode.id}
-                    onPress={async () => {
-                      const newMode = mode.id as PairingMode;
-                      setPairingMode(newMode);
-                      await rebuildGlobalQueue(courts);
-                    }}
-                    className={`flex-1 py-4 px-2 rounded-3xl border items-center justify-center transition-all ${
-                      isActive
-                        ? "bg-primary/10 border-primary/50"
-                        : "bg-background border-border/50"
-                    }`}
-                  >
-                    <View
-                      className={`w-8 h-8 rounded-full items-center justify-center mb-2 ${isActive ? "bg-primary/20" : "bg-secondary border border-border/50"}`}
-                    >
-                      <AppIcon
-                        name={mode.icon as any}
-                        tintColor={
-                          isActive ? theme.primary : theme.textSecondary
-                        }
-                        size={16}
-                      />
-                    </View>
-                    <Text
-                      className={`text-[11px] font-bold text-center ${
-                        isActive ? "text-primary" : "text-foreground"
+              <View className="flex-row gap-2">
+                {([
+                  { id: "same_level", label: "Same Level", icon: "person.3.fill", desc: "Similar skills" },
+                  { id: "balanced_mix", label: "Balanced Mix", icon: "equal", desc: "Even teams" },
+                  { id: "random", label: "Random", icon: "dice.fill", desc: "Any combination" },
+                ] as const).map((mode) => {
+                  const isActive = pairingModeState === mode.id;
+                  return (
+                    <Pressable
+                      key={mode.id}
+                      onPress={async () => {
+                        setPairingMode(mode.id as PairingMode);
+                        await rebuildGlobalQueue(courts);
+                      }}
+                      className={`flex-1 py-4 px-2 rounded-3xl border items-center justify-center transition-all ${
+                        isActive ? "bg-primary/10 border-primary/50" : "bg-background border-border/50"
                       }`}
                     >
-                      {mode.label}
-                    </Text>
-                    <Text
-                      className={`text-[9px] font-medium text-center mt-0.5 px-1 ${
-                        isActive ? "text-primary/70" : "text-muted-foreground"
-                      }`}
-                    >
-                      {mode.desc}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                      <View className={`w-8 h-8 rounded-full items-center justify-center mb-2 ${isActive ? "bg-primary/20" : "bg-secondary border border-border/50"}`}>
+                        <AppIcon name={mode.icon as any} tintColor={isActive ? theme.primary : theme.textSecondary} size={16} />
+                      </View>
+                      <Text className={`text-[11px] font-bold text-center ${isActive ? "text-primary" : "text-foreground"}`}>
+                        {mode.label}
+                      </Text>
+                      <Text className={`text-[9px] font-medium text-center mt-0.5 px-1 ${isActive ? "text-primary/70" : "text-muted-foreground"}`}>
+                        {mode.desc}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
-          </View>
+          )}
         </View>
 
         {/* Vertical Court Cards list */}
@@ -399,6 +476,8 @@ export default function QueueScreen() {
                   key={court.id}
                   court={court}
                   currentMatch={currentMatch}
+                  isManualMode={assignMode === "manual"}
+                  onAssign={() => handleOpenAssignModal(court)}
                   onPressScore={() => {
                     router.push({
                       pathname: "/score",
@@ -469,6 +548,108 @@ export default function QueueScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Manual Player Assignment Modal */}
+      <Modal
+        visible={!!assignModalCourt}
+        animationType="slide"
+        transparent
+        onRequestClose={() => { setAssignModalCourt(null); setPlayerAssignments(new Map()); }}
+      >
+        <Pressable
+          className="flex-1 justify-end bg-black/50"
+          onPress={() => { setAssignModalCourt(null); setPlayerAssignments(new Map()); }}
+        >
+          <Pressable className="bg-background rounded-t-[32px] p-6 gap-5" onPress={e => e.stopPropagation()}>
+            {/* Modal header */}
+            <View className="flex-row justify-between items-center">
+              <View>
+                <Text className="text-xl font-extrabold text-foreground">Assign Players</Text>
+                <Text className="text-xs font-semibold text-muted-foreground">
+                  {assignModalCourt?.name} · {assignModalCourt?.matchType} ({maxPerTeam}v{maxPerTeam})
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => { setAssignModalCourt(null); setPlayerAssignments(new Map()); }}
+                className="w-8 h-8 rounded-full bg-secondary items-center justify-center active:opacity-70"
+              >
+                <AppIcon name="xmark" tintColor={theme.foreground} size={14} />
+              </Pressable>
+            </View>
+
+            {/* Team counters */}
+            <View className="flex-row gap-3">
+              <View className={`flex-1 rounded-2xl p-3 items-center border ${teamACount === maxPerTeam ? "bg-[#C1121F]/10 border-[#C1121F]/40" : "bg-secondary border-border"}`}>
+                <Text className="text-[10px] font-extrabold text-[#C1121F] uppercase tracking-wider">Team A</Text>
+                <Text className="text-2xl font-black text-foreground">{teamACount}/{maxPerTeam}</Text>
+              </View>
+              <View className={`flex-1 rounded-2xl p-3 items-center border ${teamBCount === maxPerTeam ? "bg-[#1E3A8A]/10 border-[#1E3A8A]/40" : "bg-secondary border-border"}`}>
+                <Text className="text-[10px] font-extrabold text-[#1E3A8A] uppercase tracking-wider">Team B</Text>
+                <Text className="text-2xl font-black text-foreground">{teamBCount}/{maxPerTeam}</Text>
+              </View>
+            </View>
+
+            <Text className="text-[10px] font-medium text-muted-foreground -mt-2">
+              Tap a player to assign → Team A → Team B → remove
+            </Text>
+
+            {/* Player list */}
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 280 }}>
+              <View className="gap-2">
+                {activePlayers.length === 0 ? (
+                  <Text className="text-xs text-muted-foreground text-center py-6">
+                    No active players. Activate players in the Players tab first.
+                  </Text>
+                ) : (
+                  activePlayers.map(player => {
+                    const assignment = playerAssignments.get(player.id);
+                    return (
+                      <Pressable
+                        key={player.id}
+                        onPress={() => togglePlayerAssignment(player)}
+                        className={`flex-row items-center justify-between p-3.5 rounded-2xl border active:opacity-70 ${
+                          assignment === "A"
+                            ? "bg-[#C1121F]/10 border-[#C1121F]/30"
+                            : assignment === "B"
+                            ? "bg-[#1E3A8A]/10 border-[#1E3A8A]/30"
+                            : "bg-secondary border-border"
+                        }`}
+                      >
+                        <View>
+                          <Text className="text-sm font-extrabold text-foreground">{player.name}</Text>
+                          <Text className="text-[10px] font-medium text-muted-foreground">{player.level}</Text>
+                        </View>
+                        <View className={`px-3 py-1 rounded-full ${
+                          assignment === "A" ? "bg-[#C1121F]" :
+                          assignment === "B" ? "bg-[#1E3A8A]" :
+                          "bg-muted-foreground/20"
+                        }`}>
+                          <Text className="text-[10px] font-black text-white">
+                            {assignment === "A" ? "Team A" : assignment === "B" ? "Team B" : "Tap"}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </View>
+            </ScrollView>
+
+            {/* Confirm button */}
+            <Pressable
+              onPress={handleConfirmAssignment}
+              disabled={!isAssignReady}
+              className={`py-4 rounded-full items-center justify-center ${isAssignReady ? "bg-primary active:opacity-80" : "bg-muted-foreground/20"}`}
+            >
+              <Text className={`text-sm font-extrabold uppercase tracking-wider ${isAssignReady ? "text-white" : "text-muted-foreground"}`}>
+                {isAssignReady
+                  ? "Assign to Court"
+                  : `Select ${remainingToSelect} more player${remainingToSelect !== 1 ? "s" : ""}`}
+              </Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* End Session Modal */}
       <Modal

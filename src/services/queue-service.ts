@@ -221,6 +221,26 @@ export async function autoAssignMatchupsToEmptyCourts(
   }
 }
 
+export async function manualAssignCourt(
+  courtId: number,
+  teamA: Player[],
+  teamB: Player[],
+) {
+  const playing = await getActiveMatchups();
+  const existing = playing.find((m) => m.courtId === courtId);
+  if (existing) {
+    await updateMatchupStatus(existing.id, "finished", null);
+  }
+  await addMatchups([{
+    teamA: JSON.stringify(teamA),
+    teamB: JSON.stringify(teamB),
+    orderIndex: 0,
+    status: "playing",
+    courtId,
+  }]);
+  notifyQueueChanged();
+}
+
 export async function removePlayerFromQueue(playerId: number) {
   const waiting = await getGlobalQueue();
   const playing = await getActiveMatchups();
