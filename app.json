@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "court-hub",
+    "name": "Qourt",
     "slug": "court-hub",
     "version": "1.0.0",
     "updates": {
@@ -12,7 +12,7 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.phpastil.courthub",
+      "bundleIdentifier": "com.phpastil.qourt",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -25,7 +25,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.phpastil.courthub"
+      "package": "com.phpastil.qourt"
     },
     "web": {
       "output": "static",
