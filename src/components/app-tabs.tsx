@@ -2,10 +2,15 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { useColorScheme } from "react-native";
 
 import { Colors } from "@/constants/theme";
-import { Image } from "expo-image";
+import { Image as ExpoImage } from "expo-image";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform, Pressable, Text, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AppTabs() {
@@ -148,64 +153,85 @@ function CustomTabBar({ state, descriptors, navigation, colors, scheme }: any) {
           };
 
           return (
-            <Pressable
+            <TabBarItem
               key={route.key}
+              route={route}
+              isFocused={isFocused}
+              label={label}
+              icon={tabIcons[route.name]}
+              colors={colors}
+              scheme={scheme}
               onPress={onPress}
-              style={{
-                alignItems: "center",
-                justifyContent: "center",
-                flex: 1,
-              }}
-            >
-              <View
-                style={{
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: isFocused
-                    ? scheme === "dark"
-                      ? "rgba(255, 255, 255, 0.08)"
-                      : "rgba(0, 0, 0, 0.05)"
-                    : "transparent",
-                  borderRadius: 9999,
-                  paddingVertical: 6,
-                  paddingHorizontal: 12,
-                  width: "90%",
-                }}
-              >
-                <Image
-                  source={tabIcons[route.name]}
-                  style={{
-                    width: 20,
-                    height: 20,
-                    marginBottom: 2,
-                  }}
-                  tintColor={
-                    isFocused
-                      ? colors.primary
-                      : scheme === "dark"
-                        ? "#ffffff"
-                        : "#000000"
-                  }
-                  contentFit="contain"
-                />
-                <Text
-                  style={{
-                    fontSize: 10,
-                    fontWeight: isFocused ? "800" : "500",
-                    color: isFocused
-                      ? colors.primary
-                      : scheme === "dark"
-                        ? "#ffffff"
-                        : "#000000",
-                  }}
-                >
-                  {label}
-                </Text>
-              </View>
-            </Pressable>
+            />
           );
         })}
       </View>
     </View>
+  );
+}
+
+function TabBarItem({ isFocused, label, icon, colors, scheme, onPress }: any) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={() => {
+        scale.value = withSpring(0.88, { damping: 15, stiffness: 400 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+      }}
+      style={{ alignItems: "center", justifyContent: "center", flex: 1 }}
+    >
+      <Animated.View
+        style={[
+          animatedStyle,
+          {
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: isFocused
+              ? scheme === "dark"
+                ? "rgba(255, 255, 255, 0.08)"
+                : "rgba(0, 0, 0, 0.05)"
+              : "transparent",
+            borderRadius: 9999,
+            paddingVertical: 6,
+            paddingHorizontal: 12,
+            width: "90%",
+          },
+        ]}
+      >
+        <ExpoImage
+          source={icon}
+          style={{ width: 20, height: 20, marginBottom: 2 }}
+          tintColor={
+            isFocused
+              ? colors.primary
+              : scheme === "dark"
+                ? "#ffffff"
+                : "#000000"
+          }
+          contentFit="contain"
+        />
+        <Text
+          style={{
+            fontSize: 10,
+            fontWeight: isFocused ? "800" : "500",
+            color: isFocused
+              ? colors.primary
+              : scheme === "dark"
+                ? "#ffffff"
+                : "#000000",
+          }}
+        >
+          {label}
+        </Text>
+      </Animated.View>
+    </Pressable>
   );
 }
