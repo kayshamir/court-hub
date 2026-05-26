@@ -1,13 +1,13 @@
 import { Player, PairingMode } from "@/types/player";
 import { Matchup } from "@/types/queue";
+import { addMatchups, clearWaitingQueue, getGlobalQueue, getActiveMatchups, updateMatchupStatus, clearAllMatchups } from "./database";
+import { fetchActivePlayers } from "./player-service";
 
 const SKILL_VALUE = { Beginner: 1, Intermediate: 2, Advanced: 3 };
 
-const courtPools = new Map<number, Matchup[]>();
-const poolListeners = new Set<() => void>();
-
 let currentPairingMode: PairingMode = "balanced_mix";
 const pairingModeListeners = new Set<(mode: PairingMode) => void>();
+const queueListeners = new Set<() => void>();
 
 export function getPairingMode(): PairingMode {
   return currentPairingMode;
@@ -25,25 +25,15 @@ export function subscribeToPairingMode(listener: (mode: PairingMode) => void) {
   };
 }
 
-export function getPoolForCourt(courtId: number): Matchup[] {
-  return courtPools.get(courtId) || [];
-}
-
-export function setPoolForCourt(courtId: number, pool: Matchup[]) {
-  courtPools.set(courtId, pool);
-  poolListeners.forEach((l) => l());
-}
-
-export function subscribeToPool(listener: () => void) {
-  poolListeners.add(listener);
+export function subscribeToQueue(listener: () => void) {
+  queueListeners.add(listener);
   return () => {
-    poolListeners.delete(listener);
+    queueListeners.delete(listener);
   };
 }
 
-export function clearAllPools() {
-  courtPools.clear();
-  poolListeners.forEach((l) => l());
+export function notifyQueueChanged() {
+  queueListeners.forEach((l) => l());
 }
 
 export function buildBalancedPool(
@@ -64,12 +54,10 @@ export function buildBalancedPool(
   let teams: Player[][] = [];
   
   if (pairingMode === "same_level") {
-    // Group by level, pair within groups
     for (let i = 0; i + playersPerTeam - 1 < sorted.length; i += playersPerTeam) {
       teams.push(sorted.slice(i, i + playersPerTeam));
     }
   } else if (pairingMode === "balanced_mix" && isDoubles) {
-    // Pair from opposite ends: Beginner+Advanced, etc.
     const copy = [...sorted];
     while (copy.length >= 2) {
       const low = copy.shift()!;
@@ -77,12 +65,10 @@ export function buildBalancedPool(
       teams.push([low, high]);
     }
   } else {
-    // Random or balanced_mix singles
     for (let i = 0; i + playersPerTeam - 1 < sorted.length; i += playersPerTeam) {
       teams.push(sorted.slice(i, i + playersPerTeam));
     }
     if (pairingMode === "balanced_mix" && !isDoubles) {
-      // For singles balanced: pair from opposite ends
       const half = Math.floor(teams.length / 2);
       const reordered: Matchup[] = [];
       for (let i = 0; i < half; i++) {
@@ -108,48 +94,79 @@ export function buildBalancedPool(
   return matchups;
 }
 
-export function swapPlayerInMatchup(
-  matchup: Matchup,
-  tappedPlayerId: number,
-): Matchup {
-  const idxA = matchup.teamA.findIndex(p => p.id === tappedPlayerId);
-  const idxB = matchup.teamB.findIndex(p => p.id === tappedPlayerId);
+export async function rebuildGlobalQueue(matchType: string = "doubles") {
+  const activePlayers = await fetchActivePlayers();
   
-  const newA = [...matchup.teamA];
-  const newB = [...matchup.teamB];
+  const playingMatchupsDB = await getActiveMatchups();
+  const playingPlayerIds = new Set<number>();
+  
+  for (const m of playingMatchupsDB) {
+    try {
+      const teamA = JSON.parse(m.team_a) as Player[];
+      const teamB = JSON.parse(m.team_b) as Player[];
+      teamA.forEach(p => playingPlayerIds.add(p.id));
+      teamB.forEach(p => playingPlayerIds.add(p.id));
+    } catch {}
+  }
+  
+  const waitingPlayers = activePlayers.filter(p => !playingPlayerIds.has(p.id));
+  const newMatchups = buildBalancedPool(waitingPlayers, matchType, currentPairingMode);
+  
+  await clearWaitingQueue();
+  
+  await addMatchups(newMatchups.map((m, index) => ({
+    teamA: JSON.stringify(m.teamA),
+    teamB: JSON.stringify(m.teamB),
+    orderIndex: index,
+    status: "waiting",
+    courtId: null
+  })));
 
-  if (idxA !== -1 && newB[idxA]) {
-    [newA[idxA], newB[idxA]] = [newB[idxA], newA[idxA]];
-  } else if (idxB !== -1 && newA[idxB]) {
-    [newA[idxB], newB[idxB]] = [newB[idxB], newA[idxB]];
+  notifyQueueChanged();
+}
+
+export async function rotateCourt(courtId: number) {
+  const playingMatchups = await getActiveMatchups();
+  const currentMatch = playingMatchups.find(m => m.courtId === courtId);
+  
+  if (currentMatch) {
+    await updateMatchupStatus(currentMatch.id, "finished", null);
+  }
+  
+  const queue = await getGlobalQueue();
+  if (queue.length > 0) {
+    const nextMatch = queue[0];
+    await updateMatchupStatus(nextMatch.id, "playing", courtId);
+  }
+  
+  notifyQueueChanged();
+}
+
+export async function autoAssignMatchupsToEmptyCourts(courtIds: number[]) {
+  const playingMatchups = await getActiveMatchups();
+  const occupiedCourtIds = new Set(playingMatchups.map(m => m.courtId));
+  const emptyCourts = courtIds.filter(id => !occupiedCourtIds.has(id));
+  
+  if (emptyCourts.length === 0) return;
+
+  const queue = await getGlobalQueue();
+  let assignedCount = 0;
+
+  for (const emptyCourtId of emptyCourts) {
+    if (assignedCount < queue.length) {
+      const nextMatch = queue[assignedCount];
+      await updateMatchupStatus(nextMatch.id, "playing", emptyCourtId);
+      assignedCount++;
+    }
   }
 
-  return { ...matchup, teamA: newA, teamB: newB };
+  if (assignedCount > 0) {
+    notifyQueueChanged();
+  }
 }
 
-// Reorders a pool based on drag and drop
-export function reorderWaitingPool(
-  courtId: number,
-  newOrder: string[], // array of matchup ids
-): void {
-  const current = getPoolForCourt(courtId);
-  const reordered = newOrder
-    .map(id => current.find(m => m.id === id)!)
-    .filter(Boolean);
-  
-  setPoolForCourt(courtId, reordered);
+export async function clearAllPools() {
+  await clearAllMatchups();
+  notifyQueueChanged();
 }
 
-// When a match finishes, we rotate
-export function rotateCourt(courtId: number) {
-  const pool = getPoolForCourt(courtId);
-  if (pool.length === 0) return;
-
-  const finishedMatchup = pool[0];
-  const remaining = pool.slice(1);
-  
-  // Push the finished matchup to the bottom
-  // In a real scenario, you might want to rebuild the pool from active players minus current court players
-  // For now, simple rotation:
-  setPoolForCourt(courtId, [...remaining, finishedMatchup]);
-}

@@ -138,15 +138,6 @@ export default function DashboardScreen() {
             <Text className="text-lg font-extrabold text-foreground">
               Court Status
             </Text>
-            <Pressable
-              onPress={() => router.push("/create-court")}
-              className="bg-primary flex-row items-center gap-1.5 px-3 py-2 rounded-full active:opacity-70"
-            >
-              <AppIcon name="plus" tintColor="#fff" size={12} />
-              <Text className="text-[11px] font-extrabold text-white uppercase tracking-wider">
-                New Court
-              </Text>
-            </Pressable>
           </View>
 
           {/* Court Grid List */}

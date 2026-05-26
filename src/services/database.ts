@@ -1,5 +1,5 @@
 import * as schema from "@/db/schema";
-import { courts, matches, players, DBPlayer } from "@/db/schema";
+import { courts, matches, players, DBPlayer, matchups, DBMatchup } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/expo-sqlite";
 import { SkillLevel } from "@/types/player";
@@ -155,4 +155,60 @@ export async function addCourt(
 
 export async function deleteCourt(id: number) {
   await db.delete(courts).where(eq(courts.id, id));
+}
+
+// Matchups / Queue
+export async function addMatchups(
+  matchupsData: {
+    teamA: string;
+    teamB: string;
+    orderIndex: number;
+    status?: "waiting" | "playing" | "finished";
+    courtId?: number | null;
+  }[]
+) {
+  if (matchupsData.length === 0) return;
+  await db.insert(matchups).values(
+    matchupsData.map((m) => ({
+      team_a: m.teamA,
+      team_b: m.teamB,
+      order_index: m.orderIndex,
+      status: m.status || "waiting",
+      courtId: m.courtId || null,
+    }))
+  );
+}
+
+export async function clearWaitingQueue() {
+  await db.delete(matchups).where(eq(matchups.status, "waiting"));
+}
+
+export async function clearAllMatchups() {
+  await db.delete(matchups);
+}
+
+export async function getGlobalQueue(): Promise<DBMatchup[]> {
+  return db
+    .select()
+    .from(matchups)
+    .where(eq(matchups.status, "waiting"))
+    .orderBy(matchups.order_index);
+}
+
+export async function getActiveMatchups(): Promise<DBMatchup[]> {
+  return db
+    .select()
+    .from(matchups)
+    .where(eq(matchups.status, "playing"));
+}
+
+export async function updateMatchupStatus(
+  id: number,
+  status: "waiting" | "playing" | "finished",
+  courtId: number | null = null
+) {
+  await db
+    .update(matchups)
+    .set({ status, courtId })
+    .where(eq(matchups.id, id));
 }

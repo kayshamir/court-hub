@@ -2,24 +2,19 @@ import { CourtCanvas } from "@/components/court-preview";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { saveMatchResult } from "@/services/match-service";
-import {
-  getPoolForCourt,
-  reorderWaitingPool,
-  rotateCourt,
-  swapPlayerInMatchup,
-} from "@/services/queue-service";
+import { getActiveMatchupForCourt } from "@/services/database";
+import { rotateCourt } from "@/services/queue-service";
 import { SportType } from "@/types/court";
 import { Matchup } from "@/types/queue";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   Activity,
   ChevronLeft,
-  GripVertical,
   Info,
   Minus,
   Pause,
   Play,
-  Repeat2,
   RotateCcw,
   Trophy,
   Undo2,
@@ -36,7 +31,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { RenderItemParams } from "react-native-draggable-flatlist";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const WIN_OPTIONS = [11, 15, 21, 25];
@@ -93,20 +87,6 @@ export default function ScoreScreen() {
     teamB?: string;
   }>();
 
-  const teamAFromQueue: string[] | null = params.teamA
-    ? JSON.parse(params.teamA)
-    : null;
-  const teamBFromQueue: string[] | null = params.teamB
-    ? JSON.parse(params.teamB)
-    : null;
-
-  const derivedMode = teamAFromQueue
-    ? teamAFromQueue.length > 1
-      ? "doubles"
-      : "singles"
-    : "doubles";
-
-  const matchMode = derivedMode;
   const sportType = (params.sport?.toLowerCase() || "badminton") as SportType;
 
   const [winTarget, setWinTarget] = React.useState(21);
@@ -122,68 +102,38 @@ export default function ScoreScreen() {
     { id: number; player: string; action: string; points: string }[]
   >([]);
 
-  const initialTeamA = React.useMemo(() => {
-    return (
-      teamAFromQueue ??
-      (matchMode === "singles" ? ["J. Miller"] : ["Miller", "King"])
-    );
-  }, [params.teamA, matchMode]);
-
-  const initialTeamB = React.useMemo(() => {
-    return (
-      teamBFromQueue ??
-      (matchMode === "singles" ? ["A. Chen"] : ["Chen", "Lee"])
-    );
-  }, [params.teamB, matchMode]);
+  const [initialTeamA, setInitialTeamA] = React.useState<string[]>([]);
+  const [initialTeamB, setInitialTeamB] = React.useState<string[]>([]);
+  const [teamAPlayers, setTeamAPlayers] = React.useState<string[]>([]);
+  const [teamBPlayers, setTeamBPlayers] = React.useState<string[]>([]);
+  const [matchMode, setMatchMode] = React.useState<"singles" | "doubles">("doubles");
 
   const courtId = params.courtId ? parseInt(params.courtId as string, 10) : 1;
-  const [waitingPool, setWaitingPool] = React.useState<Matchup[]>(
-    getPoolForCourt(courtId),
-  );
-  const [swappingMatchup, setSwappingMatchup] = React.useState<Matchup | null>(
-    null,
-  );
 
   React.useEffect(() => {
-    setWaitingPool(getPoolForCourt(courtId));
+    async function loadMatchup() {
+      const matchup = await getActiveMatchupForCourt(courtId);
+      if (matchup) {
+        try {
+          const tA = JSON.parse(matchup.team_a).map((p: any) => p.name);
+          const tB = JSON.parse(matchup.team_b).map((p: any) => p.name);
+          setInitialTeamA(tA);
+          setInitialTeamB(tB);
+          setTeamAPlayers(tA);
+          setTeamBPlayers(tB);
+          setMatchMode(tA.length > 1 ? "doubles" : "singles");
+        } catch (e) {
+          console.error("Failed to parse matchup", e);
+        }
+      }
+    }
+    loadMatchup();
   }, [courtId]);
 
-  const handleDragEnd = ({ data }: { data: Matchup[] }) => {
-    setWaitingPool(data);
-    reorderWaitingPool(
-      courtId,
-      data.map((m) => m.id),
-    );
-  };
-
-  const handleSwapPlayer = (matchup: Matchup, playerId: number) => {
-    const newMatchup = swapPlayerInMatchup(matchup, playerId);
-    const updatedPool = waitingPool.map((m) =>
-      m.id === matchup.id ? newMatchup : m,
-    );
-    setWaitingPool(updatedPool);
-    reorderWaitingPool(
-      courtId,
-      updatedPool.map((m) => m.id),
-    );
-    if (swappingMatchup?.id === matchup.id) {
-      setSwappingMatchup(newMatchup);
-    }
-  };
-
-  const [teamAPlayers, setTeamAPlayers] =
-    React.useState<string[]>(initialTeamA);
-  const [teamBPlayers, setTeamBPlayers] =
-    React.useState<string[]>(initialTeamB);
   const [servingTeam, setServingTeam] = React.useState<"A" | "B">("A");
 
   // History stack for Undo
   const [history, setHistory] = React.useState<MatchState[]>([]);
-
-  // Sync player arrays when query parameters change
-  React.useEffect(() => {
-    setTeamAPlayers(initialTeamA);
-    setTeamBPlayers(initialTeamB);
   }, [initialTeamA, initialTeamB]);
 
   const matchStarted = scoreA > 0 || scoreB > 0;

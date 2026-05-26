@@ -32,6 +32,16 @@ export const courts = sqliteTable("courts", {
   createdAt: text("createdAt").notNull(),
 });
 
+export const matchups = sqliteTable("matchups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  courtId: integer("courtId"), // references courts.id, null if waiting in queue
+  status: text("status").notNull().default("waiting"), // "waiting", "playing", "finished"
+  team_a: text("team_a").notNull(), // JSON of Player array
+  team_b: text("team_b").notNull(), // JSON of Player array
+  order_index: integer("order_index").notNull().default(0),
+});
+
 export type DBPlayer = typeof players.$inferSelect;
 export type DBMatch = typeof matches.$inferSelect;
 export type DBCourt = typeof courts.$inferSelect;
+export type DBMatchup = typeof matchups.$inferSelect;

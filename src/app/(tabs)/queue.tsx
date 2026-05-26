@@ -6,15 +6,14 @@ import { useTheme } from "@/hooks/use-theme";
 import { getCourts } from "@/services/database";
 import { endSession, fetchActivePlayers } from "@/services/player-service";
 import {
-  buildBalancedPool,
-  clearAllPools,
   getPairingMode,
-  getPoolForCourt,
   setPairingMode,
-  setPoolForCourt,
   subscribeToPairingMode,
-  subscribeToPool,
+  subscribeToQueue,
+  autoAssignMatchupsToEmptyCourts,
+  clearAllPools,
 } from "@/services/queue-service";
+import { getGlobalQueue, getActiveMatchups } from "@/services/database";
 import { SportType } from "@/types/court";
 import { PairingMode, Player } from "@/types/player";
 import { Matchup } from "@/types/queue";
@@ -32,14 +31,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function CourtCard({
   court,
-  matchups,
+  currentMatch,
   onPressScore,
 }: {
   court: DBCourt;
-  matchups: Matchup[];
+  currentMatch: Matchup | undefined;
   onPressScore: () => void;
 }) {
-  const currentMatch = matchups[0];
   const hasMatch = !!currentMatch;
   const matchType = court.matchType;
 
@@ -147,84 +145,6 @@ function CourtCard({
         </CourtCanvas>
       </View>
 
-      {/* Matchups list */}
-      <View className="gap-3.5 pt-4 border-t border-border">
-        <Text className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest">
-          Match Queue
-        </Text>
-
-        {matchups.length === 0 ? (
-          <Text className="text-xs font-medium text-muted-foreground">
-            No matchups scheduled. Activate players to populate.
-          </Text>
-        ) : (
-          <View className="gap-2.5">
-            {matchups.slice(0, 3).map((match, mIdx) => {
-              const isLive = mIdx === 0;
-              const isNext = mIdx === 1;
-              return (
-                <View
-                  key={match.id}
-                  className={`flex-row justify-between items-center p-3 rounded-2xl border ${
-                    isLive
-                      ? "bg-primary/5 border-primary/20"
-                      : "bg-background border-border"
-                  }`}
-                >
-                  <View className="flex-row items-center gap-3">
-                    <View
-                      className={`w-6 h-6 rounded-full items-center justify-center ${
-                        isLive
-                          ? "bg-primary bg-[#C1121F]"
-                          : isNext
-                            ? "bg-foreground/10"
-                            : "bg-secondary"
-                      }`}
-                    >
-                      <Text
-                        className={`text-[10px] font-black ${
-                          isLive ? "text-white" : "text-muted-foreground"
-                        }`}
-                      >
-                        {isLive ? "▶" : `${mIdx}`}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text className="text-xs font-black text-foreground">
-                        {match.teamA.map((p) => p.name).join(" & ")}{" "}
-                        <Text className="text-muted-foreground font-medium text-[10px]">
-                          vs
-                        </Text>{" "}
-                        {match.teamB.map((p) => p.name).join(" & ")}
-                      </Text>
-                      <Text className="text-[10px] font-semibold text-muted-foreground mt-0.5">
-                        {isLive
-                          ? "Current Match"
-                          : isNext
-                            ? "Next Matchup"
-                            : `Upcoming Matchup #${mIdx}`}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {isLive && (
-                    <View className="bg-primary/10 px-2 py-0.5 rounded-full bg-[#C1121F]/10">
-                      <Text className="text-[8px] font-extrabold text-primary uppercase text-[#C1121F]">
-                        Live
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-            {matchups.length > 3 && (
-              <Text className="text-[10px] font-bold text-muted-foreground text-center mt-1">
-                + {matchups.length - 3} more matchups
-              </Text>
-            )}
-          </View>
-        )}
-      </View>
     </Pressable>
   );
 }
@@ -238,6 +158,8 @@ export default function QueueScreen() {
   const [activePlayers, setActivePlayers] = React.useState<Player[]>([]);
   const [pairingModeState, setPairingModeState] =
     React.useState<PairingMode>(getPairingMode());
+  const [globalQueue, setGlobalQueue] = React.useState<Matchup[]>([]);
+  const [activeMatchups, setActiveMatchups] = React.useState<Map<number, Matchup>>(new Map());
   const [isEndSessionModalVisible, setIsEndSessionModalVisible] =
     React.useState(false);
   const [, setForceUpdate] = React.useState(0);
@@ -249,17 +171,29 @@ export default function QueueScreen() {
       const players = await fetchActivePlayers();
       setActivePlayers(players);
 
-      // Initialize pools for courts if they don't have one
-      dbCourts.forEach((court) => {
-        if (getPoolForCourt(court.id).length === 0 && players.length > 0) {
-          const newPool = buildBalancedPool(
-            players,
-            court.matchType,
-            pairingModeState,
-          );
-          setPoolForCourt(court.id, newPool);
+      const dbGlobalQueue = await getGlobalQueue();
+      const dbActiveMatchups = await getActiveMatchups();
+      
+      const parsedQueue = dbGlobalQueue.map(m => ({
+        id: m.id.toString(),
+        teamA: JSON.parse(m.team_a),
+        teamB: JSON.parse(m.team_b)
+      }));
+      setGlobalQueue(parsedQueue);
+      
+      const parsedActive = new Map<number, Matchup>();
+      dbActiveMatchups.forEach(m => {
+        if (m.courtId) {
+          parsedActive.set(m.courtId, {
+            id: m.id.toString(),
+            teamA: JSON.parse(m.team_a),
+            teamB: JSON.parse(m.team_b)
+          });
         }
       });
+      setActiveMatchups(parsedActive);
+
+      await autoAssignMatchupsToEmptyCourts(dbCourts.map(c => c.id));
     } catch (error) {
       console.error("Error loading queue data:", error);
     }
@@ -269,10 +203,9 @@ export default function QueueScreen() {
     loadData();
   }, [pairingModeState]);
 
-  // Subscribe to pool changes to trigger re-renders
   React.useEffect(() => {
-    const unsubPool = subscribeToPool(() => {
-      setForceUpdate((prev) => prev + 1);
+    const unsubQueue = subscribeToQueue(() => {
+      loadData();
     });
 
     const unsubPairing = subscribeToPairingMode((newMode) => {
@@ -280,7 +213,7 @@ export default function QueueScreen() {
     });
 
     return () => {
-      unsubPool();
+      unsubQueue();
       unsubPairing();
     };
   }, []);
@@ -328,15 +261,24 @@ export default function QueueScreen() {
                 Live Rotation
               </Text>
             </View>
-            <Pressable
-              onPress={() => setIsEndSessionModalVisible(true)}
-              className="bg-secondary px-4 py-2 rounded-full flex-row items-center gap-1.5 border border-red-500/20 active:opacity-70"
-            >
-              <AppIcon name="stop.circle.fill" tintColor="#ef4444" size={14} />
-              <Text className="text-sm font-bold text-red-500">
-                End Session
-              </Text>
-            </Pressable>
+            <View className="flex-row items-center gap-3">
+              <Pressable
+                onPress={() => setIsEndSessionModalVisible(true)}
+                className="bg-red-500/10 w-10 h-10 rounded-full items-center justify-center border border-red-500/20 active:opacity-70"
+              >
+                <AppIcon
+                  name="stop.circle.fill"
+                  tintColor="#ef4444"
+                  size={16}
+                />
+              </Pressable>
+              <Pressable
+                onPress={() => router.push("/create-court")}
+                className="bg-primary w-10 h-10 rounded-full items-center justify-center active:opacity-80"
+              >
+                <AppIcon name="plus" tintColor="#fff" size={16} />
+              </Pressable>
+            </View>
           </View>
 
           {/* Pairing Mode Selector */}
@@ -417,6 +359,58 @@ export default function QueueScreen() {
 
         {/* Vertical Court Cards list */}
         <View className="px-5">
+          {/* Global Queue UI */}
+          <View className="mb-6 bg-secondary rounded-[32px] p-5 border border-border">
+            <Text className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest mb-4">
+              Match Queue
+            </Text>
+            {globalQueue.length === 0 ? (
+              <Text className="text-xs font-medium text-muted-foreground">
+                No matchups scheduled.
+              </Text>
+            ) : (
+              <View className="gap-2.5">
+                {globalQueue.map((match, mIdx) => {
+                  const isNext = mIdx === 0;
+                  return (
+                    <View
+                      key={match.id}
+                      className={`flex-row justify-between items-center p-3 rounded-2xl border ${
+                        isNext
+                          ? "bg-primary/5 border-primary/20"
+                          : "bg-background border-border"
+                      }`}
+                    >
+                      <View className="flex-row items-center gap-3">
+                        <View
+                          className={`w-6 h-6 rounded-full items-center justify-center ${
+                            isNext ? "bg-foreground/10" : "bg-secondary"
+                          }`}
+                        >
+                          <Text className="text-[10px] font-black text-muted-foreground">
+                            {mIdx + 1}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text className="text-xs font-black text-foreground">
+                            {match.teamA.map((p) => p.name).join(" & ")}{" "}
+                            <Text className="text-muted-foreground font-medium text-[10px]">
+                              vs
+                            </Text>{" "}
+                            {match.teamB.map((p) => p.name).join(" & ")}
+                          </Text>
+                          <Text className="text-[10px] font-semibold text-muted-foreground mt-0.5">
+                            {isNext ? "Next Matchup" : `Upcoming #${mIdx + 1}`}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
           {courts.length === 0 ? (
             <View className="py-12 items-center justify-center border border-dashed border-border rounded-3xl bg-secondary/50">
               <Text className="text-muted-foreground font-medium">
@@ -425,12 +419,12 @@ export default function QueueScreen() {
             </View>
           ) : (
             courts.map((court) => {
-              const matchups = getPoolForCourt(court.id);
+              const currentMatch = activeMatchups.get(court.id);
               return (
                 <CourtCard
                   key={court.id}
                   court={court}
-                  matchups={matchups}
+                  currentMatch={currentMatch}
                   onPressScore={() => {
                     router.push({
                       pathname: "/score",
