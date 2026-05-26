@@ -41,11 +41,92 @@ export function getCourtMatch(pool: Team[], courtIndex: number) {
   };
 }
 
+let currentPool: Team[] = [...INITIAL_POOL];
+const poolListeners = new Set<() => void>();
+
+export function getPool(): Team[] {
+  return currentPool;
+}
+
+export function setPool(newPool: Team[]) {
+  currentPool = newPool;
+  poolListeners.forEach((l) => l());
+}
+
+export function subscribeToPool(listener: () => void) {
+  poolListeners.add(listener);
+  return () => {
+    poolListeners.delete(listener);
+  };
+}
+
+export function rotateCourt(
+  courtIndex: number,
+  assignedCount: number,
+  updatedTeamA?: string[],
+  updatedTeamB?: string[],
+) {
+  const tempPool: (Team | undefined)[] = [...currentPool];
+
+  const idxA = courtIndex * 4;
+  const idxB = courtIndex * 4 + 1;
+  const idxNextA = courtIndex * 4 + 2;
+  const idxNextB = courtIndex * 4 + 3;
+
+  const oldA = tempPool[idxA];
+  const oldB = tempPool[idxB];
+  const nextA = tempPool[idxNextA];
+  const nextB = tempPool[idxNextB];
+
+  if (oldA && updatedTeamA) {
+    oldA.players = updatedTeamA;
+  }
+  if (oldB && updatedTeamB) {
+    oldB.players = updatedTeamB;
+  }
+
+  const waitingPool = currentPool.slice(assignedCount);
+
+  // The new current teams for this court are the old next teams
+  tempPool[idxA] = nextA;
+  tempPool[idxB] = nextB;
+
+  // The new next teams for this court come from the head of the waiting pool
+  const newNextA = waitingPool.shift();
+  const newNextB = waitingPool.shift();
+
+  tempPool[idxNextA] = newNextA;
+  tempPool[idxNextB] = newNextB;
+
+  // The finished teams go to the back of the waiting pool
+  if (oldA) waitingPool.push(oldA);
+  if (oldB) waitingPool.push(oldB);
+
+  // Now, we need to reconstruct the pool
+  const assignedTeams: Team[] = [];
+  for (let i = 0; i < assignedCount; i++) {
+    const t = tempPool[i];
+    if (t) {
+      assignedTeams.push(t);
+    }
+  }
+
+  const newPool = [...assignedTeams, ...waitingPool];
+
+  // Re-index all positions
+  const reIndexedPool = newPool.map((team, idx) => ({
+    ...team,
+    position: idx + 1,
+  }));
+
+  setPool(reIndexedPool);
+}
+
 export function reorderWaitingPool(
   pool: Team[],
   newOrder: number[],
   assignedCount: number,
-  waitingPool: Team[]
+  waitingPool: Team[],
 ): Team[] {
   const assigned = pool.slice(0, assignedCount);
   const reordered = newOrder

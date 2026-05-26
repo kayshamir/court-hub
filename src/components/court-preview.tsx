@@ -105,9 +105,54 @@ function BadmintonLines({ w, h }: { w: number; h: number }) {
   );
 }
 
+interface CourtCanvasProps {
+  sportType: SportType;
+  children?: React.ReactNode;
+  aspectRatio?: number;
+  className?: string;
+}
+
+export function CourtCanvas({
+  sportType,
+  children,
+  aspectRatio = 16 / 10,
+  className = "",
+}: CourtCanvasProps) {
+  const [size, setSize] = React.useState({ width: 0, height: 0 });
+
+  return (
+    <View
+      className={`w-full bg-court-green rounded-2xl overflow-hidden border-2 border-white relative ${className}`}
+      style={{ aspectRatio }}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setSize({ width, height });
+      }}
+    >
+      {size.width > 0 && (
+        <Svg
+          width={size.width}
+          height={size.height}
+          style={{ position: "absolute", top: 0, left: 0 }}
+        >
+          {sportType === "tennis" && (
+            <TennisLines w={size.width} h={size.height} />
+          )}
+          {sportType === "pickleball" && (
+            <PickleballLines w={size.width} h={size.height} />
+          )}
+          {sportType === "badminton" && (
+            <BadmintonLines w={size.width} h={size.height} />
+          )}
+        </Svg>
+      )}
+      {children}
+    </View>
+  );
+}
+
 export function CourtPreview({ sportType }: CourtPreviewProps) {
   const config = SPORT_CONFIGS[sportType];
-  const [size, setSize] = React.useState({ width: 0, height: 0 });
 
   return (
     <View className="w-full bg-secondary rounded-3xl overflow-hidden border border-black/5">
@@ -126,28 +171,7 @@ export function CourtPreview({ sportType }: CourtPreviewProps) {
 
       {/* Court canvas */}
       <View className="p-4 bg-black/5 dark:bg-white/5">
-        <View
-          className="w-full bg-court-green rounded-2xl overflow-hidden border-2 border-white"
-          style={{ aspectRatio: 16 / 10 }}
-          onLayout={(e) => {
-            const { width, height } = e.nativeEvent.layout;
-            setSize({ width, height });
-          }}
-        >
-          {size.width > 0 && (
-            <Svg width={size.width} height={size.height}>
-              {sportType === "tennis" && (
-                <TennisLines w={size.width} h={size.height} />
-              )}
-              {sportType === "pickleball" && (
-                <PickleballLines w={size.width} h={size.height} />
-              )}
-              {sportType === "badminton" && (
-                <BadmintonLines w={size.width} h={size.height} />
-              )}
-            </Svg>
-          )}
-        </View>
+        <CourtCanvas sportType={sportType} aspectRatio={16 / 10} />
       </View>
     </View>
   );
