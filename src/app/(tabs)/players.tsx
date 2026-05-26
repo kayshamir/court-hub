@@ -231,7 +231,7 @@ export default function PlayersScreen() {
           ) : (
             <>
               {topPerformer && (
-                <View className="bg-secondary rounded-3xl p-5 border border-black/5 flex-row justify-between items-center relative overflow-hidden">
+                <View className="bg-secondary rounded-3xl p-5 border border-border flex-row justify-between items-center relative overflow-hidden">
                   <View className="z-10 flex-1">
                     <View className="flex-row items-center gap-2 mb-2">
                       <View className="bg-primary px-2.5 py-2 rounded-full flex-row items-center gap-1">
@@ -296,7 +296,7 @@ export default function PlayersScreen() {
                 </View>
 
                 {/* List Header */}
-                <View className="flex-row items-center px-4 py-2 border-b border-black/5">
+                <View className="flex-row items-center px-4 py-2 border-b border-border">
                   <Text className="w-12 text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">
                     Rank
                   </Text>
@@ -313,7 +313,7 @@ export default function PlayersScreen() {
                   {regularPlayers.map((player) => (
                     <View
                       key={player.id}
-                      className="bg-secondary rounded-3xl p-4 border border-black/5 flex-row justify-between items-center"
+                      className="bg-secondary rounded-3xl p-4 border border-border flex-row justify-between items-center"
                     >
                       <View className="flex-row items-center gap-4 flex-1">
                         <Text className="w-8 text-sm font-black text-muted-foreground">
@@ -373,13 +373,13 @@ export default function PlayersScreen() {
                           </Pressable>
 
                           {openPlayerOptionsId === player.id && (
-                            <View className="absolute right-0 top-12 z-20 w-40 rounded-3xl bg-background border border-black/10 shadow-lg overflow-hidden">
+                            <View className="absolute right-0 top-12 z-20 w-40 rounded-3xl bg-background border border-border shadow-lg overflow-hidden">
                               <Pressable
                                 onPress={() => {
                                   togglePlayerOptions(player.id);
                                   openEditPlayerModal(player);
                                 }}
-                                className="px-4 py-4 border-b border-black/10"
+                                className="px-4 py-4 border-b border-border"
                               >
                                 <Text className="text-sm font-semibold text-foreground">
                                   Update
@@ -459,7 +459,7 @@ export default function PlayersScreen() {
                   <View className="relative">
                     <Pressable
                       onPress={() => setIsLevelDropdownOpen((open) => !open)}
-                      className="bg-secondary rounded-2xl border border-black/5 px-4 py-4 flex-row items-center justify-between"
+                      className="bg-secondary rounded-2xl border border-border px-4 py-4 flex-row items-center justify-between"
                     >
                       <Text className="text-sm text-foreground font-medium">
                         {newPlayerLevel}
@@ -474,7 +474,7 @@ export default function PlayersScreen() {
                     </Pressable>
 
                     {isLevelDropdownOpen && (
-                      <View className="absolute z-50 mt-2 w-full rounded-2xl bg-background border border-black/10 shadow-lg overflow-hidden">
+                      <View className="absolute z-50 mt-2 w-full rounded-2xl bg-background border border-border shadow-lg overflow-hidden">
                         {["Beginner", "Intermediate", "Advanced"].map(
                           (level) => (
                             <Pressable
@@ -546,7 +546,7 @@ export default function PlayersScreen() {
               <View className="relative">
                 <Pressable
                   onPress={() => setIsEditLevelDropdownOpen((open) => !open)}
-                  className="bg-secondary rounded-2xl border border-black/5 px-4 py-4 flex-row items-center justify-between"
+                  className="bg-secondary rounded-2xl border border-border px-4 py-4 flex-row items-center justify-between"
                 >
                   <Text className="text-sm text-foreground font-medium">
                     {editPlayerLevel}
@@ -561,7 +561,7 @@ export default function PlayersScreen() {
                 </Pressable>
 
                 {isEditLevelDropdownOpen && (
-                  <View className="absolute z-50 mt-2 w-full rounded-2xl bg-background border border-black/10 shadow-lg overflow-hidden">
+                  <View className="absolute z-50 mt-2 w-full rounded-2xl bg-background border border-border shadow-lg overflow-hidden">
                     {["Beginner", "Intermediate", "Advanced"].map((level) => (
                       <Pressable
                         key={level}

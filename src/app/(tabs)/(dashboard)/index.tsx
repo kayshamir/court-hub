@@ -1,5 +1,6 @@
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useRouter } from "expo-router";
 import { AppIcon } from "@/components/ui/icon";
 import { router } from "expo-router";
@@ -11,6 +12,8 @@ export default function DashboardScreen() {
   const router = useRouter();
   const safeAreaInsets = useSafeAreaInsets();
   const theme = useTheme();
+  const colorScheme = useColorScheme();
+  const courtGreen = colorScheme === "dark" ? "#4ade80" : "#2D5A27";
   const insets = {
     ...safeAreaInsets,
     bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.four,
@@ -65,7 +68,7 @@ export default function DashboardScreen() {
 
           {/* Quick Stats Grid */}
           <View className="flex-row gap-4">
-            <View className="flex-1 bg-secondary p-4 rounded-3xl border border-black/5">
+            <View className="flex-1 bg-secondary p-4 rounded-3xl border border-border">
               <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mb-3">
                 <AppIcon
                   name="play.fill"
@@ -79,7 +82,7 @@ export default function DashboardScreen() {
               </Text>
             </View>
 
-            <View className="flex-1 bg-secondary p-4 rounded-3xl border border-black/5">
+            <View className="flex-1 bg-secondary p-4 rounded-3xl border border-border">
               <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mb-3">
                 <AppIcon
                   name="person.3.fill"
@@ -95,7 +98,7 @@ export default function DashboardScreen() {
               </Text>
             </View>
 
-            <View className="flex-1 bg-secondary p-4 rounded-3xl border border-black/5">
+            <View className="flex-1 bg-secondary p-4 rounded-3xl border border-border">
               <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mb-3">
                 <AppIcon
                   name="sportscourt.fill"
@@ -153,7 +156,7 @@ export default function DashboardScreen() {
           {/* Court Grid List */}
           <View className="gap-4">
             {/* Court Alpha (Badminton) */}
-            <View className="bg-secondary rounded-3xl overflow-hidden border border-black/5">
+            <View className="bg-secondary rounded-3xl overflow-hidden border border-border">
               <View className="p-4 border-b border-black/5 flex-row justify-between items-center">
                 <View className="flex-row items-center gap-3">
                   <AppIcon
@@ -215,12 +218,12 @@ export default function DashboardScreen() {
             </View>
 
             {/* Court Beta (Pickleball Available) */}
-            <View className="bg-secondary rounded-3xl overflow-hidden border border-black/5">
-              <View className="p-4 border-b border-black/5 flex-row justify-between items-center">
+            <View className="bg-secondary rounded-3xl overflow-hidden border border-border">
+              <View className="p-4 border-b border-border flex-row justify-between items-center">
                 <View className="flex-row items-center gap-3">
                   <AppIcon
                     name="checkmark.circle.fill"
-                    tintColor="#2D5A27"
+                    tintColor={courtGreen}
                     size={18}
                   />
                   <View>
@@ -232,9 +235,18 @@ export default function DashboardScreen() {
                     </Text>
                   </View>
                 </View>
-                <View className="bg-court-green/10 px-3 py-1 rounded-full flex-row items-center gap-1.5">
-                  <View className="w-1.5 h-1.5 rounded-full bg-court-green" />
-                  <Text className="text-[10px] font-bold text-court-green uppercase">
+                <View
+                  className="px-3 py-1 rounded-full flex-row items-center gap-1.5"
+                  style={{ backgroundColor: `${courtGreen}1a` }}
+                >
+                  <View
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: courtGreen }}
+                  />
+                  <Text
+                    className="text-[10px] font-bold uppercase"
+                    style={{ color: courtGreen }}
+                  >
                     Available
                   </Text>
                 </View>
@@ -254,7 +266,7 @@ export default function DashboardScreen() {
           </View>
 
           {/* Interactive Court Map Card */}
-          <View className="bg-secondary/40 rounded-3xl p-5 border border-dashed border-black/10 items-center justify-center py-8">
+          <View className="bg-secondary/40 rounded-3xl p-5 border border-dashed border-border items-center justify-center py-8">
             <AppIcon
               name="map.fill"
               tintColor={theme.primary}
@@ -267,7 +279,7 @@ export default function DashboardScreen() {
             <Text className="text-xs text-muted-foreground text-center mt-1 mb-4 px-8">
               Visual representation of court status and live occupancy.
             </Text>
-            <Pressable className="bg-secondary border border-black/10 px-5 py-3 rounded-full active:opacity-70">
+            <Pressable className="bg-secondary border border-border px-5 py-3 rounded-full active:opacity-70">
               <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
                 Explore Layout
               </Text>

@@ -123,7 +123,7 @@ function DraggableQueueItem({
   return (
     <GestureDetector gesture={dragGesture}>
       <Animated.View style={[animatedStyle, { height: 68 }]}>
-        <View className="bg-secondary rounded-3xl p-4 border border-black/5 flex-row justify-between items-center flex-1">
+        <View className="bg-secondary rounded-3xl p-4 border border-border flex-row justify-between items-center flex-1">
           <View className="flex-row items-center gap-4 flex-1">
             <View className="w-9 h-9 rounded-full bg-primary/10 items-center justify-center">
               <Text className="text-xs font-black text-primary">
@@ -390,7 +390,7 @@ export default function QueueScreen() {
             </View>
             <Pressable
               onPress={handleShuffle}
-              className="bg-secondary px-4 py-2 rounded-full flex-row items-center gap-1.5 border border-black/5 active:opacity-70"
+              className="bg-secondary px-4 py-2 rounded-full flex-row items-center gap-1.5 border border-border active:opacity-70"
             >
               <AppIcon name="shuffle" tintColor={theme.foreground} size={12} />
               <Text className="text-sm font-bold text-foreground">Shuffle</Text>
@@ -469,7 +469,7 @@ export default function QueueScreen() {
           </View>
 
           {waitingPool.length === 0 ? (
-            <View className="bg-secondary/40 rounded-3xl p-6 border border-dashed border-black/10 items-center py-10">
+            <View className="bg-secondary/40 rounded-3xl p-6 border border-dashed border-border items-center py-10">
               <Text className="text-sm font-bold text-muted-foreground">
                 No teams waiting
               </Text>
