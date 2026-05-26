@@ -535,11 +535,12 @@ export default function ScoreScreen() {
                 {matchMode === "doubles" && leftHalfPlayers.length > 1 ? (
                   <View className="items-center justify-center relative w-12 h-12">
                     <View
-                      className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${leftColor} ${
+                      className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${leftColor}`}
+                      style={
                         leftHalfPlayers[1] === currentServerName
-                          ? "scale-110 border-yellow-400"
-                          : ""
-                      }`}
+                          ? { transform: [{ scale: 1.1 }], borderColor: "#facc15" }
+                          : undefined
+                      }
                     >
                       <Text className="text-white text-xs font-black leading-none">
                         {getPlayerNumber(
@@ -570,11 +571,12 @@ export default function ScoreScreen() {
                 {/* Even Side (Bottom) */}
                 <View className="items-center justify-center relative w-12 h-12">
                   <View
-                    className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${leftColor} ${
+                    className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${leftColor}`}
+                    style={
                       leftHalfPlayers[0] === currentServerName
-                        ? "scale-110 border-yellow-400"
-                        : ""
-                    }`}
+                        ? { transform: [{ scale: 1.1 }], borderColor: "#facc15" }
+                        : undefined
+                    }
                   >
                     <Text className="text-white text-xs font-black leading-none">
                       {getPlayerNumber(
@@ -610,11 +612,12 @@ export default function ScoreScreen() {
                 {/* Even Side (Top) */}
                 <View className="items-center justify-center relative w-12 h-12">
                   <View
-                    className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${rightColor} ${
+                    className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${rightColor}`}
+                    style={
                       rightHalfPlayers[0] === currentServerName
-                        ? "scale-110 border-yellow-400"
-                        : ""
-                    }`}
+                        ? { transform: [{ scale: 1.1 }], borderColor: "#facc15" }
+                        : undefined
+                    }
                   >
                     <Text className="text-white text-xs font-black leading-none">
                       {getPlayerNumber(
@@ -645,11 +648,12 @@ export default function ScoreScreen() {
                 {matchMode === "doubles" && rightHalfPlayers.length > 1 ? (
                   <View className="items-center justify-center relative w-12 h-12">
                     <View
-                      className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${rightColor} ${
+                      className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${rightColor}`}
+                      style={
                         rightHalfPlayers[1] === currentServerName
-                          ? "scale-110 border-yellow-400"
-                          : ""
-                      }`}
+                          ? { transform: [{ scale: 1.1 }], borderColor: "#facc15" }
+                          : undefined
+                      }
                     >
                       <Text className="text-white text-xs font-black leading-none">
                         {getPlayerNumber(

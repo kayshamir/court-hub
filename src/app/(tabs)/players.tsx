@@ -15,7 +15,7 @@ import {
   setPairingMode,
   subscribeToPairingMode,
 } from "@/services/queue-service";
-import { Player, PairingMode } from "@/types/player";
+import { PairingMode, Player } from "@/types/player";
 import React from "react";
 import {
   ActivityIndicator,
@@ -52,7 +52,8 @@ export default function PlayersScreen() {
   const [playerToRemove, setPlayerToRemove] = React.useState<Player | null>(
     null,
   );
-  const [pairingModeState, setPairingModeState] = React.useState<PairingMode>(getPairingMode());
+  const [pairingModeState, setPairingModeState] =
+    React.useState<PairingMode>(getPairingMode());
 
   const loadPlayers = async () => {
     try {
@@ -226,59 +227,7 @@ export default function PlayersScreen() {
             />
           </View>
 
-          {/* Pairing Mode Selector */}
-          <View className="gap-3">
-            <View className="px-1">
-              <Text className="text-sm font-extrabold text-foreground uppercase tracking-wider">
-                Pairing Mode
-              </Text>
-              <Text className="text-xs text-muted-foreground mt-0.5">
-                Select how players are grouped in the queue
-              </Text>
-            </View>
-            <View className="flex-row gap-2">
-              {[
-                { id: "same_level", label: "Same Level", icon: "person.3.fill", desc: "Similar skills" },
-                { id: "balanced_mix", label: "Balanced Mix", icon: "equal", desc: "Even teams" },
-                { id: "random", label: "Random", icon: "dice.fill", desc: "Any combination" },
-              ].map((mode) => {
-                const isActive = pairingModeState === mode.id;
-                return (
-                  <Pressable
-                    key={mode.id}
-                    onPress={() => setPairingMode(mode.id as PairingMode)}
-                    className={`flex-1 py-4 px-2 rounded-3xl border items-center justify-center transition-all ${
-                      isActive
-                        ? "bg-primary/10 border-primary"
-                        : "bg-secondary border-transparent"
-                    }`}
-                  >
-                    <View className={`w-8 h-8 rounded-full items-center justify-center mb-2 ${isActive ? "bg-primary/20" : "bg-background border border-border/50"}`}>
-                      <AppIcon
-                        name={mode.icon as any}
-                        tintColor={isActive ? theme.primary : theme.textSecondary}
-                        size={16}
-                      />
-                    </View>
-                    <Text
-                      className={`text-[11px] font-bold text-center ${
-                        isActive ? "text-primary" : "text-foreground"
-                      }`}
-                    >
-                      {mode.label}
-                    </Text>
-                    <Text
-                      className={`text-[9px] font-medium text-center mt-0.5 px-1 ${
-                        isActive ? "text-primary/70" : "text-muted-foreground"
-                      }`}
-                    >
-                      {mode.desc}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
+
 
           {isLoading ? (
             <View className="py-12 items-center justify-center">

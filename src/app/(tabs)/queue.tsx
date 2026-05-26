@@ -4,22 +4,30 @@ import { BottomTabInset, Spacing } from "@/constants/theme";
 import { DBCourt } from "@/db/schema";
 import { useTheme } from "@/hooks/use-theme";
 import { getCourts } from "@/services/database";
-import { fetchActivePlayers, endSession } from "@/services/player-service";
+import { endSession, fetchActivePlayers } from "@/services/player-service";
 import {
   buildBalancedPool,
-  getPoolForCourt,
-  setPoolForCourt,
-  subscribeToPool,
   clearAllPools,
   getPairingMode,
-  subscribeToPairingMode
+  getPoolForCourt,
+  setPairingMode,
+  setPoolForCourt,
+  subscribeToPairingMode,
+  subscribeToPool,
 } from "@/services/queue-service";
 import { SportType } from "@/types/court";
-import { Matchup } from "@/types/queue";
 import { PairingMode, Player } from "@/types/player";
+import { Matchup } from "@/types/queue";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Platform, Pressable, ScrollView, Text, View, Modal } from "react-native";
+import {
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function CourtCard({
@@ -36,7 +44,7 @@ function CourtCard({
   const matchType = court.matchType;
 
   return (
-    <Pressable 
+    <Pressable
       className="bg-secondary rounded-[32px] p-5 border border-border gap-5 mb-5 w-full max-w-[800px] self-center active:scale-[0.98] transition-transform"
       onPress={onPressScore}
     >
@@ -78,18 +86,25 @@ function CourtCard({
                 style={{ width: "50%" }}
                 className="absolute left-0 top-0 bottom-0 justify-center items-center gap-4 flex-row"
               >
-                {matchType.toLowerCase() === "doubles" && currentMatch.teamA.length > 1 ? (
+                {matchType.toLowerCase() === "doubles" &&
+                currentMatch.teamA.length > 1 ? (
                   <>
                     <View className="bg-red-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
-                      <Text className="text-[10px] font-black text-white">{currentMatch.teamA[0].name}</Text>
+                      <Text className="text-[10px] font-black text-white">
+                        {currentMatch.teamA[0].name}
+                      </Text>
                     </View>
                     <View className="bg-red-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
-                      <Text className="text-[10px] font-black text-white">{currentMatch.teamA[1].name}</Text>
+                      <Text className="text-[10px] font-black text-white">
+                        {currentMatch.teamA[1].name}
+                      </Text>
                     </View>
                   </>
                 ) : currentMatch.teamA.length > 0 ? (
                   <View className="bg-red-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
-                    <Text className="text-[10px] font-black text-white">{currentMatch.teamA[0].name}</Text>
+                    <Text className="text-[10px] font-black text-white">
+                      {currentMatch.teamA[0].name}
+                    </Text>
                   </View>
                 ) : null}
               </View>
@@ -99,18 +114,25 @@ function CourtCard({
                 style={{ width: "50%" }}
                 className="absolute right-0 top-0 bottom-0 justify-center items-center gap-4 flex-row"
               >
-                {matchType.toLowerCase() === "doubles" && currentMatch.teamB.length > 1 ? (
+                {matchType.toLowerCase() === "doubles" &&
+                currentMatch.teamB.length > 1 ? (
                   <>
                     <View className="bg-blue-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
-                      <Text className="text-[10px] font-black text-white">{currentMatch.teamB[0].name}</Text>
+                      <Text className="text-[10px] font-black text-white">
+                        {currentMatch.teamB[0].name}
+                      </Text>
                     </View>
                     <View className="bg-blue-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
-                      <Text className="text-[10px] font-black text-white">{currentMatch.teamB[1].name}</Text>
+                      <Text className="text-[10px] font-black text-white">
+                        {currentMatch.teamB[1].name}
+                      </Text>
                     </View>
                   </>
                 ) : currentMatch.teamB.length > 0 ? (
                   <View className="bg-blue-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
-                    <Text className="text-[10px] font-black text-white">{currentMatch.teamB[0].name}</Text>
+                    <Text className="text-[10px] font-black text-white">
+                      {currentMatch.teamB[0].name}
+                    </Text>
                   </View>
                 ) : null}
               </View>
@@ -169,7 +191,11 @@ function CourtCard({
                     </View>
                     <View>
                       <Text className="text-xs font-black text-foreground">
-                        {match.teamA.map(p => p.name).join(" & ")} <Text className="text-muted-foreground font-medium text-[10px]">vs</Text> {match.teamB.map(p => p.name).join(" & ")}
+                        {match.teamA.map((p) => p.name).join(" & ")}{" "}
+                        <Text className="text-muted-foreground font-medium text-[10px]">
+                          vs
+                        </Text>{" "}
+                        {match.teamB.map((p) => p.name).join(" & ")}
                       </Text>
                       <Text className="text-[10px] font-semibold text-muted-foreground mt-0.5">
                         {isLive
@@ -210,8 +236,10 @@ export default function QueueScreen() {
 
   const [courts, setCourts] = React.useState<DBCourt[]>([]);
   const [activePlayers, setActivePlayers] = React.useState<Player[]>([]);
-  const [pairingMode, setPairingModeState] = React.useState<PairingMode>(getPairingMode());
-  const [isEndSessionModalVisible, setIsEndSessionModalVisible] = React.useState(false);
+  const [pairingModeState, setPairingModeState] =
+    React.useState<PairingMode>(getPairingMode());
+  const [isEndSessionModalVisible, setIsEndSessionModalVisible] =
+    React.useState(false);
   const [, setForceUpdate] = React.useState(0);
 
   const loadData = async () => {
@@ -222,9 +250,13 @@ export default function QueueScreen() {
       setActivePlayers(players);
 
       // Initialize pools for courts if they don't have one
-      dbCourts.forEach(court => {
+      dbCourts.forEach((court) => {
         if (getPoolForCourt(court.id).length === 0 && players.length > 0) {
-          const newPool = buildBalancedPool(players, court.matchType, pairingMode);
+          const newPool = buildBalancedPool(
+            players,
+            court.matchType,
+            pairingModeState,
+          );
           setPoolForCourt(court.id, newPool);
         }
       });
@@ -235,14 +267,14 @@ export default function QueueScreen() {
 
   React.useEffect(() => {
     loadData();
-  }, [pairingMode]);
+  }, [pairingModeState]);
 
   // Subscribe to pool changes to trigger re-renders
   React.useEffect(() => {
     const unsubPool = subscribeToPool(() => {
-      setForceUpdate(prev => prev + 1);
+      setForceUpdate((prev) => prev + 1);
     });
-    
+
     const unsubPairing = subscribeToPairingMode((newMode) => {
       setPairingModeState(newMode);
     });
@@ -287,7 +319,7 @@ export default function QueueScreen() {
       >
         <View className="px-5 max-w-[800px] w-full self-center">
           {/* Header */}
-          <View className="flex-row justify-between items-center py-2 mb-6">
+          <View className="flex-row justify-between items-center py-2 mb-4">
             <View>
               <Text className="text-3xl font-extrabold tracking-tight text-foreground">
                 Court Queue
@@ -301,17 +333,95 @@ export default function QueueScreen() {
               className="bg-secondary px-4 py-2 rounded-full flex-row items-center gap-1.5 border border-red-500/20 active:opacity-70"
             >
               <AppIcon name="stop.circle.fill" tintColor="#ef4444" size={14} />
-              <Text className="text-sm font-bold text-red-500">End Session</Text>
+              <Text className="text-sm font-bold text-red-500">
+                End Session
+              </Text>
             </Pressable>
           </View>
 
+          {/* Pairing Mode Selector */}
+          <View className="bg-secondary rounded-[32px] p-5 border border-border gap-4 mb-6">
+            <View className="flex-row items-center justify-between gap-x-3 gap-y-1.5">
+              <View>
+                <Text className="text-lg font-black text-foreground tracking-tight">
+                  Pairing Mode
+                </Text>
+                <Text className="text-xs font-semibold text-muted-foreground mt-0.5">
+                  Select how players are grouped
+                </Text>
+              </View>
+            </View>
+            <View className="flex-row gap-2 mt-2">
+              {[
+                {
+                  id: "same_level",
+                  label: "Same Level",
+                  icon: "person.3.fill",
+                  desc: "Similar skills",
+                },
+                {
+                  id: "balanced_mix",
+                  label: "Balanced Mix",
+                  icon: "equal",
+                  desc: "Even teams",
+                },
+                {
+                  id: "random",
+                  label: "Random",
+                  icon: "dice.fill",
+                  desc: "Any combination",
+                },
+              ].map((mode) => {
+                const isActive = pairingModeState === mode.id;
+                return (
+                  <Pressable
+                    key={mode.id}
+                    onPress={() => setPairingMode(mode.id as PairingMode)}
+                    className={`flex-1 py-4 px-2 rounded-3xl border items-center justify-center transition-all ${
+                      isActive
+                        ? "bg-primary/10 border-primary/50"
+                        : "bg-background border-border/50"
+                    }`}
+                  >
+                    <View
+                      className={`w-8 h-8 rounded-full items-center justify-center mb-2 ${isActive ? "bg-primary/20" : "bg-secondary border border-border/50"}`}
+                    >
+                      <AppIcon
+                        name={mode.icon as any}
+                        tintColor={
+                          isActive ? theme.primary : theme.textSecondary
+                        }
+                        size={16}
+                      />
+                    </View>
+                    <Text
+                      className={`text-[11px] font-bold text-center ${
+                        isActive ? "text-primary" : "text-foreground"
+                      }`}
+                    >
+                      {mode.label}
+                    </Text>
+                    <Text
+                      className={`text-[9px] font-medium text-center mt-0.5 px-1 ${
+                        isActive ? "text-primary/70" : "text-muted-foreground"
+                      }`}
+                    >
+                      {mode.desc}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </View>
 
         {/* Vertical Court Cards list */}
         <View className="px-5">
           {courts.length === 0 ? (
             <View className="py-12 items-center justify-center border border-dashed border-border rounded-3xl bg-secondary/50">
-              <Text className="text-muted-foreground font-medium">No courts available.</Text>
+              <Text className="text-muted-foreground font-medium">
+                No courts available.
+              </Text>
             </View>
           ) : (
             courts.map((court) => {
@@ -329,7 +439,7 @@ export default function QueueScreen() {
                         courtName: court.name,
                         sport: court.sport,
                         matchType: court.matchType,
-                        pairingMode,
+                        pairingMode: pairingModeState,
                       },
                     });
                   }}
@@ -359,7 +469,8 @@ export default function QueueScreen() {
               End Session?
             </Text>
             <Text className="text-sm text-muted-foreground leading-6">
-              This will reset all active players to inactive and clear all waiting pools. This action cannot be undone.
+              This will reset all active players to inactive and clear all
+              waiting pools. This action cannot be undone.
             </Text>
 
             <View className="flex-row justify-end gap-3 mt-6">
@@ -375,7 +486,9 @@ export default function QueueScreen() {
                 onPress={handleEndSession}
                 className="rounded-full bg-red-500 px-4 py-3 items-center justify-center"
               >
-                <Text className="text-sm font-semibold text-white">End Session</Text>
+                <Text className="text-sm font-semibold text-white">
+                  End Session
+                </Text>
               </Pressable>
             </View>
           </Pressable>
