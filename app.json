@@ -24,7 +24,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.phpastil.courthub"
     },
     "web": {
       "output": "static",
@@ -51,7 +52,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "8b5575b1-17fa-4a7c-96f6-6aaf72ddbaee"
+        "projectId": "6407ec7b-63f3-483b-9a31-beaed217f8ed"
       }
     }
   }
