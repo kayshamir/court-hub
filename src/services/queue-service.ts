@@ -94,8 +94,19 @@ export function buildBalancedPool(
   return matchups;
 }
 
+let isRebuildingQueue = false;
+
 export async function rebuildGlobalQueue(courts: { id: number; matchType: string }[]) {
-  if (courts.length === 0) return;
+  if (isRebuildingQueue || courts.length === 0) return;
+  isRebuildingQueue = true;
+  try {
+    await _rebuildGlobalQueue(courts);
+  } finally {
+    isRebuildingQueue = false;
+  }
+}
+
+async function _rebuildGlobalQueue(courts: { id: number; matchType: string }[]) {
 
   const activePlayers = await fetchActivePlayers();
 
@@ -112,12 +123,14 @@ export async function rebuildGlobalQueue(courts: { id: number; matchType: string
 
   let waitingPlayers = activePlayers.filter((p) => !playingPlayerIds.has(p.id));
 
-  // Process doubles first (consumes 4 players) then singles (consumes 2)
-  const matchTypes = [...new Set(courts.map((c) => c.matchType))].sort((a, b) => {
-    const aD = a.toLowerCase() === "doubles";
-    const bD = b.toLowerCase() === "doubles";
-    return aD === bD ? 0 : aD ? -1 : 1;
-  });
+  // Sort match types by court count descending so more courts get proportionally more queue slots
+  const courtCounts = new Map<string, number>();
+  for (const c of courts) {
+    courtCounts.set(c.matchType, (courtCounts.get(c.matchType) ?? 0) + 1);
+  }
+  const matchTypes = [...courtCounts.keys()].sort(
+    (a, b) => (courtCounts.get(b) ?? 0) - (courtCounts.get(a) ?? 0)
+  );
 
   const allMatchupData: {
     teamA: string;
@@ -128,12 +141,18 @@ export async function rebuildGlobalQueue(courts: { id: number; matchType: string
   }[] = [];
   let orderIndex = 0;
 
-  for (const matchType of matchTypes) {
-    const playersPerMatch = matchType.toLowerCase() === "doubles" ? 4 : 2;
-    if (waitingPlayers.length < playersPerMatch) continue;
+  // Interleave one matchup at a time per court type so all types get players from the same pool
+  let madeProgress = true;
+  while (madeProgress) {
+    madeProgress = false;
+    for (const matchType of matchTypes) {
+      const playersPerMatch = matchType.toLowerCase() === "doubles" ? 4 : 2;
+      if (waitingPlayers.length < playersPerMatch) continue;
 
-    const newMatchups = buildBalancedPool(waitingPlayers, matchType, currentPairingMode);
-    for (const m of newMatchups) {
+      const newMatchups = buildBalancedPool(waitingPlayers, matchType, currentPairingMode);
+      if (newMatchups.length === 0) continue;
+
+      const m = newMatchups[0];
       allMatchupData.push({
         teamA: JSON.stringify(m.teamA),
         teamB: JSON.stringify(m.teamB),
@@ -141,15 +160,13 @@ export async function rebuildGlobalQueue(courts: { id: number; matchType: string
         status: "waiting",
         courtId: null,
       });
-    }
 
-    // Remove consumed players so they aren't reused in the next type's pool
-    const usedIds = new Set<number>();
-    newMatchups.forEach((m) => {
+      const usedIds = new Set<number>();
       m.teamA.forEach((p) => usedIds.add(p.id));
       m.teamB.forEach((p) => usedIds.add(p.id));
-    });
-    waitingPlayers = waitingPlayers.filter((p) => !usedIds.has(p.id));
+      waitingPlayers = waitingPlayers.filter((p) => !usedIds.has(p.id));
+      madeProgress = true;
+    }
   }
 
   await clearWaitingQueue();
