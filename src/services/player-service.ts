@@ -1,38 +1,44 @@
 import { DBPlayer } from "@/db/schema";
-import { Player, SkillLevel } from "@/types/player";
+import { Player, SkillLevel, PlayerStatus } from "@/types/player";
 import {
   addPlayer,
   deletePlayer,
   getPlayers,
   updatePlayerLevel,
+  updatePlayerStatus,
+  resetAllPlayersToInactive,
+  getActivePlayers,
 } from "./database";
 
 export async function initializePlayersDB() {
   // Migrations are now handled by useMigrations in _layout.tsx
 }
 
+function mapDBPlayerToPlayer(p: DBPlayer): Player {
+  let parsedForm: ("W" | "L")[] = [];
+  try {
+    parsedForm = JSON.parse(p.form);
+  } catch {
+    parsedForm = [];
+  }
+  return {
+    id: p.id,
+    name: p.name,
+    rank: p.rank,
+    form: parsedForm,
+    wins: p.wins ?? 0,
+    losses: p.losses ?? 0,
+    rate: p.rate ?? "0.0%",
+    isTopPerformer: p.isTopPerformer === 1,
+    level: (p.level as SkillLevel) || "Beginner",
+    status: (p.status as PlayerStatus) || "inactive",
+  };
+}
+
 export async function fetchRankedPlayersList(): Promise<Player[]> {
   const dbPlayers: DBPlayer[] = await getPlayers();
 
-  const mappedPlayers: Player[] = dbPlayers.map((p) => {
-    let parsedForm: ("W" | "L")[] = [];
-    try {
-      parsedForm = JSON.parse(p.form);
-    } catch {
-      parsedForm = [];
-    }
-    return {
-      id: p.id,
-      name: p.name,
-      rank: p.rank,
-      form: parsedForm,
-      wins: p.wins ?? 0,
-      losses: p.losses ?? 0,
-      rate: p.rate ?? "0.0%",
-      isTopPerformer: p.isTopPerformer === 1,
-      level: (p.level as SkillLevel) || "Beginner",
-    };
-  });
+  const mappedPlayers: Player[] = dbPlayers.map(mapDBPlayerToPlayer);
 
   const getWinRateValue = (player: Player) => parseFloat(player.rate) || 0;
 
@@ -78,4 +84,21 @@ export async function changePlayerSkillLevel(
   level: SkillLevel,
 ) {
   await updatePlayerLevel(playerId, level);
+}
+
+export async function togglePlayerStatus(
+  playerId: number,
+  currentStatus: PlayerStatus,
+) {
+  const newStatus = currentStatus === "active" ? "inactive" : "active";
+  await updatePlayerStatus(playerId, newStatus);
+}
+
+export async function endSession() {
+  await resetAllPlayersToInactive();
+}
+
+export async function fetchActivePlayers(): Promise<Player[]> {
+  const dbPlayers = await getActivePlayers();
+  return dbPlayers.map(mapDBPlayerToPlayer);
 }

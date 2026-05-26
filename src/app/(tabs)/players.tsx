@@ -8,8 +8,14 @@ import {
   initializePlayersDB,
   registerPlayer,
   removePlayer,
+  togglePlayerStatus,
 } from "@/services/player-service";
-import { Player } from "@/types/player";
+import {
+  getPairingMode,
+  setPairingMode,
+  subscribeToPairingMode,
+} from "@/services/queue-service";
+import { Player, PairingMode } from "@/types/player";
 import React from "react";
 import {
   ActivityIndicator,
@@ -23,6 +29,7 @@ import {
   Text,
   View,
 } from "react-native";
+import Swipeable from "react-native-gesture-handler/Swipeable";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppIcon } from "../../components/ui/icon";
 
@@ -37,20 +44,15 @@ export default function PlayersScreen() {
   const [newPlayerLevel, setNewPlayerLevel] = React.useState<
     "Beginner" | "Intermediate" | "Advanced"
   >("Beginner");
-  const [isLevelDropdownOpen, setIsLevelDropdownOpen] = React.useState(false);
   const [playerToEdit, setPlayerToEdit] = React.useState<Player | null>(null);
   const [editPlayerLevel, setEditPlayerLevel] = React.useState<
     "Beginner" | "Intermediate" | "Advanced"
   >("Beginner");
-  const [isEditLevelDropdownOpen, setIsEditLevelDropdownOpen] =
-    React.useState(false);
-  const [openPlayerOptionsId, setOpenPlayerOptionsId] = React.useState<
-    number | null
-  >(null);
   const [players, setPlayers] = React.useState<Player[]>([]);
   const [playerToRemove, setPlayerToRemove] = React.useState<Player | null>(
     null,
   );
+  const [pairingModeState, setPairingModeState] = React.useState<PairingMode>(getPairingMode());
 
   const loadPlayers = async () => {
     try {
@@ -68,6 +70,12 @@ export default function PlayersScreen() {
     loadPlayers();
   }, []);
 
+  React.useEffect(() => {
+    return subscribeToPairingMode((newMode) => {
+      setPairingModeState(newMode);
+    });
+  }, []);
+
   const handleAddPlayer = async () => {
     if (!newPlayerName.trim()) return;
 
@@ -76,7 +84,6 @@ export default function PlayersScreen() {
       await registerPlayer(newPlayerName, newPlayerLevel);
       setNewPlayerName("");
       setNewPlayerLevel("Beginner");
-      setIsLevelDropdownOpen(false);
       setIsAddModalVisible(false);
       await loadPlayers();
     } catch (error) {
@@ -110,19 +117,10 @@ export default function PlayersScreen() {
   const openEditPlayerModal = (player: Player) => {
     setPlayerToEdit(player);
     setEditPlayerLevel(player.level);
-    setIsEditLevelDropdownOpen(false);
   };
 
   const closeEditPlayerModal = () => {
     setPlayerToEdit(null);
-    setIsEditLevelDropdownOpen(false);
-    setOpenPlayerOptionsId(null);
-  };
-
-  const togglePlayerOptions = (playerId: number) => {
-    setOpenPlayerOptionsId((current) =>
-      current === playerId ? null : playerId,
-    );
   };
 
   const handleUpdatePlayerLevel = async () => {
@@ -132,7 +130,6 @@ export default function PlayersScreen() {
       setIsLoading(true);
       await changePlayerSkillLevel(playerToEdit.id, editPlayerLevel);
       setPlayerToEdit(null);
-      setIsEditLevelDropdownOpen(false);
       await loadPlayers();
     } catch (error) {
       console.error("Error updating player skill level:", error);
@@ -140,10 +137,31 @@ export default function PlayersScreen() {
     }
   };
 
+  const handleToggleStatus = async (player: Player) => {
+    try {
+      await togglePlayerStatus(player.id, player.status);
+      // Optimistically update the UI to feel snappy
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === player.id
+            ? { ...p, status: p.status === "active" ? "inactive" : "active" }
+            : p,
+        ),
+      );
+    } catch (error) {
+      console.error("Error toggling player status:", error);
+      // Revert on error by reloading
+      await loadPlayers();
+    }
+  };
+
   const topPerformer = players.length > 0 ? players[0] : null;
   const regularPlayers = players.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+  const activePlayersCount = players.filter(
+    (p) => p.status === "active",
+  ).length;
 
   const insets = {
     ...safeAreaInsets,
@@ -190,7 +208,7 @@ export default function PlayersScreen() {
           </View>
 
           {/* Search Input */}
-          <View className="relative flex-row items-center bg-secondary rounded-2xl px-4 py-3">
+          <View className="relative flex-row items-center bg-secondary rounded-full px-4 py-3">
             <AppIcon
               name="magnifyingglass"
               tintColor={theme.primary}
@@ -206,6 +224,60 @@ export default function PlayersScreen() {
               onChangeText={setSearchQuery}
               placeholderTextColor={theme.textSecondary}
             />
+          </View>
+
+          {/* Pairing Mode Selector */}
+          <View className="gap-3">
+            <View className="px-1">
+              <Text className="text-sm font-extrabold text-foreground uppercase tracking-wider">
+                Pairing Mode
+              </Text>
+              <Text className="text-xs text-muted-foreground mt-0.5">
+                Select how players are grouped in the queue
+              </Text>
+            </View>
+            <View className="flex-row gap-2">
+              {[
+                { id: "same_level", label: "Same Level", icon: "person.3.fill", desc: "Similar skills" },
+                { id: "balanced_mix", label: "Balanced Mix", icon: "equal", desc: "Even teams" },
+                { id: "random", label: "Random", icon: "dice.fill", desc: "Any combination" },
+              ].map((mode) => {
+                const isActive = pairingModeState === mode.id;
+                return (
+                  <Pressable
+                    key={mode.id}
+                    onPress={() => setPairingMode(mode.id as PairingMode)}
+                    className={`flex-1 py-4 px-2 rounded-3xl border items-center justify-center transition-all ${
+                      isActive
+                        ? "bg-primary/10 border-primary"
+                        : "bg-secondary border-transparent"
+                    }`}
+                  >
+                    <View className={`w-8 h-8 rounded-full items-center justify-center mb-2 ${isActive ? "bg-primary/20" : "bg-background border border-border/50"}`}>
+                      <AppIcon
+                        name={mode.icon as any}
+                        tintColor={isActive ? theme.primary : theme.textSecondary}
+                        size={16}
+                      />
+                    </View>
+                    <Text
+                      className={`text-[11px] font-bold text-center ${
+                        isActive ? "text-primary" : "text-foreground"
+                      }`}
+                    >
+                      {mode.label}
+                    </Text>
+                    <Text
+                      className={`text-[9px] font-medium text-center mt-0.5 px-1 ${
+                        isActive ? "text-primary/70" : "text-muted-foreground"
+                      }`}
+                    >
+                      {mode.desc}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
           {isLoading ? (
@@ -287,12 +359,20 @@ export default function PlayersScreen() {
               {/* Player Statistics Board */}
               <View className="gap-3">
                 <View className="flex-row justify-between items-center px-1">
-                  <Text className="text-lg font-extrabold text-foreground">
-                    Leaderboard
-                  </Text>
-                  <Text className="text-xs font-semibold text-muted-foreground">
-                    Active Season
-                  </Text>
+                  <View>
+                    <Text className="text-lg font-extrabold text-foreground">
+                      Leaderboard
+                    </Text>
+                    <Text className="text-xs font-semibold text-muted-foreground">
+                      Active Season
+                    </Text>
+                  </View>
+                  <View className="bg-primary/10 px-3 py-1.5 rounded-full border border-primary/20 flex-row items-center gap-1.5">
+                    <View className="w-2 h-2 rounded-full bg-primary" />
+                    <Text className="text-xs font-extrabold text-primary">
+                      {activePlayersCount} Active
+                    </Text>
+                  </View>
                 </View>
 
                 {/* List Header */}
@@ -311,96 +391,98 @@ export default function PlayersScreen() {
                 {/* List of Players */}
                 <View className="gap-2.5">
                   {regularPlayers.map((player) => (
-                    <View
+                    <Swipeable
                       key={player.id}
-                      className="bg-secondary rounded-3xl p-4 border border-border flex-row justify-between items-center"
-                    >
-                      <View className="flex-row items-center gap-4 flex-1">
-                        <Text className="w-8 text-sm font-black text-muted-foreground">
-                          #{player.rank}
-                        </Text>
-                        <View className="flex-1">
-                          <Text className="text-base font-extrabold text-foreground">
-                            {player.name}
-                          </Text>
-                          <Text className="text-[11px] text-muted-foreground mt-1">
-                            {player.level}
-                          </Text>
+                      renderRightActions={() => (
+                        <View className="flex-row items-stretch ml-2 gap-2 py-0.5">
+                          <Pressable
+                            onPress={() => openEditPlayerModal(player)}
+                            className="bg-white border border-border justify-center items-center w-16 rounded-3xl active:opacity-50"
+                          >
+                            <AppIcon
+                              name="pencil"
+                              tintColor="#3b82f6"
+                              size={20}
+                            />
+                          </Pressable>
+                          <Pressable
+                            onPress={() => openRemovePlayerModal(player)}
+                            className="bg-white border border-border justify-center items-center w-16 rounded-3xl active:opacity-50"
+                          >
+                            <AppIcon
+                              name="trash"
+                              tintColor="#ef4444"
+                              size={20}
+                            />
+                          </Pressable>
                         </View>
-                      </View>
-
-                      <View className="flex-row items-center gap-2">
-                        <View className="w-36 flex-row justify-end gap-1 items-center">
-                          <View className="items-end gap-1">
-                            <View className="flex-row gap-0.5">
-                              {player.form.map((res, index) => (
-                                <View
-                                  key={index}
-                                  className={`w-5 h-5 items-center justify-center rounded-full ${
-                                    res === "W"
-                                      ? "bg-primary"
-                                      : "bg-black/10 dark:bg-white/10"
-                                  }`}
-                                >
-                                  <Text
-                                    className={`text-[9px] font-black ${
-                                      res === "W"
-                                        ? "text-white"
-                                        : "text-muted-foreground"
-                                    }`}
-                                  >
-                                    {res}
-                                  </Text>
-                                </View>
-                              ))}
+                      )}
+                    >
+                      <Pressable
+                        onPress={() => handleToggleStatus(player)}
+                        className={`bg-secondary rounded-3xl p-4 border flex-row justify-between items-center ${
+                          player.status === "active"
+                            ? "border-primary/50 bg-primary/5"
+                            : "border-border"
+                        }`}
+                      >
+                        <View className="flex-row items-center gap-4 flex-1">
+                          <Text className="w-8 text-sm font-black text-muted-foreground">
+                            #{player.rank}
+                          </Text>
+                          <View className="flex-row items-center gap-3 flex-1">
+                            {/* Status Indicator */}
+                            <View
+                              className={`w-2.5 h-2.5 rounded-full ${
+                                player.status === "active"
+                                  ? "bg-primary"
+                                  : "bg-black/10 dark:bg-white/10"
+                              }`}
+                            />
+                            <View className="flex-1">
+                              <Text className="text-base font-extrabold text-foreground">
+                                {player.name}
+                              </Text>
+                              <Text className="text-[11px] text-muted-foreground mt-1">
+                                {player.level}
+                              </Text>
                             </View>
-                            <Text className="text-[9px] font-bold text-muted-foreground uppercase">
-                              {player.rate} Win rate
-                            </Text>
                           </View>
                         </View>
 
-                        <View className="relative">
-                          <Pressable
-                            onPress={() => togglePlayerOptions(player.id)}
-                            className="w-10 h-10 rounded-full bg-secondary items-center justify-center active:opacity-80"
-                          >
-                            <AppIcon
-                              name="ellipsis"
-                              tintColor={theme.foreground}
-                              size={18}
-                            />
-                          </Pressable>
-
-                          {openPlayerOptionsId === player.id && (
-                            <View className="absolute right-0 top-12 z-20 w-40 rounded-3xl bg-background border border-border shadow-lg overflow-hidden">
-                              <Pressable
-                                onPress={() => {
-                                  togglePlayerOptions(player.id);
-                                  openEditPlayerModal(player);
-                                }}
-                                className="px-4 py-4 border-b border-border"
-                              >
-                                <Text className="text-sm font-semibold text-foreground">
-                                  Update
-                                </Text>
-                              </Pressable>
-                              <Pressable
-                                onPress={() => {
-                                  togglePlayerOptions(player.id);
-                                  openRemovePlayerModal(player);
-                                }}
-                                className="px-4 py-4"
-                              >
-                                <Text className="text-sm font-semibold text-red-500">
-                                  Delete
-                                </Text>
-                              </Pressable>
+                        <View className="flex-row items-center gap-2">
+                          <View className="w-36 flex-row justify-end gap-1 items-center">
+                            <View className="items-end gap-1">
+                              <View className="flex-row gap-0.5">
+                                {player.form.map((res, index) => (
+                                  <View
+                                    key={index}
+                                    className={`w-5 h-5 items-center justify-center rounded-full ${
+                                      res === "W"
+                                        ? "bg-primary"
+                                        : "bg-black/10 dark:bg-white/10"
+                                    }`}
+                                  >
+                                    <Text
+                                      className={`text-[9px] font-black ${
+                                        res === "W"
+                                          ? "text-white"
+                                          : "text-muted-foreground"
+                                      }`}
+                                    >
+                                      {res}
+                                    </Text>
+                                  </View>
+                                ))}
+                              </View>
+                              <Text className="text-[9px] font-bold text-muted-foreground uppercase">
+                                {player.rate} Win rate
+                              </Text>
                             </View>
-                          )}
+                          </View>
                         </View>
-                      </View>
-                    </View>
+                      </Pressable>
+                    </Swipeable>
                   ))}
                 </View>
               </View>
@@ -456,53 +538,32 @@ export default function PlayersScreen() {
                   <Text className="text-sm font-semibold text-foreground">
                     Skill Level
                   </Text>
-                  <View className="relative">
-                    <Pressable
-                      onPress={() => setIsLevelDropdownOpen((open) => !open)}
-                      className="bg-secondary rounded-2xl border border-border px-4 py-4 flex-row items-center justify-between"
-                    >
-                      <Text className="text-sm text-foreground font-medium">
-                        {newPlayerLevel}
-                      </Text>
-                      <AppIcon
-                        name={
-                          isLevelDropdownOpen ? "chevron.up" : "chevron.down"
-                        }
-                        tintColor={theme.textSecondary}
-                        size={16}
-                      />
-                    </Pressable>
-
-                    {isLevelDropdownOpen && (
-                      <View className="absolute z-50 mt-2 w-full rounded-2xl bg-background border border-border shadow-lg overflow-hidden">
-                        {["Beginner", "Intermediate", "Advanced"].map(
-                          (level) => (
-                            <Pressable
-                              key={level}
-                              onPress={() => {
-                                setNewPlayerLevel(
-                                  level as
-                                    | "Beginner"
-                                    | "Intermediate"
-                                    | "Advanced",
-                                );
-                                setIsLevelDropdownOpen(false);
-                              }}
-                              className="px-4 py-4"
+                  <View className="flex-row gap-3">
+                    {(["Beginner", "Intermediate", "Advanced"] as const).map(
+                      (level) => {
+                        const isActive = newPlayerLevel === level;
+                        return (
+                          <Pressable
+                            key={level}
+                            onPress={() => setNewPlayerLevel(level)}
+                            className={`flex-1 items-center justify-center py-4 rounded-3xl border transition-all active:scale-95 ${
+                              isActive
+                                ? "bg-primary/10 border-primary"
+                                : "bg-secondary border-black/5"
+                            }`}
+                          >
+                            <Text
+                              className={`text-[10px] font-extrabold uppercase tracking-wider text-center ${
+                                isActive
+                                  ? "text-primary"
+                                  : "text-muted-foreground"
+                              }`}
                             >
-                              <Text
-                                className={`text-sm font-medium ${
-                                  newPlayerLevel === level
-                                    ? "text-primary"
-                                    : "text-foreground"
-                                }`}
-                              >
-                                {level}
-                              </Text>
-                            </Pressable>
-                          ),
-                        )}
-                      </View>
+                              {level}
+                            </Text>
+                          </Pressable>
+                        );
+                      },
                     )}
                   </View>
                 </View>
@@ -529,62 +590,39 @@ export default function PlayersScreen() {
           onPress={closeEditPlayerModal}
         >
           <Pressable
-            className="w-full max-w-md rounded-[28px] bg-background p-6 shadow-lg"
+            className="w-full max-w-md rounded-[28px] bg-background p-6"
             onPress={(e) => e.stopPropagation()}
           >
-            <Text className="text-lg font-extrabold text-foreground mb-2">
-              Update Skill Level
-            </Text>
-            <Text className="text-sm text-muted-foreground mb-4">
-              {playerToEdit?.name}
+            <Text className="text-lg font-medium text-foreground mb-6">
+              Update Skill Level for{" "}
+              <Text className="font-extrabold">{playerToEdit?.name}</Text>
             </Text>
 
             <View className="gap-2">
-              <Text className="text-sm font-semibold text-foreground">
-                Selected Level
-              </Text>
-              <View className="relative">
-                <Pressable
-                  onPress={() => setIsEditLevelDropdownOpen((open) => !open)}
-                  className="bg-secondary rounded-2xl border border-border px-4 py-4 flex-row items-center justify-between"
-                >
-                  <Text className="text-sm text-foreground font-medium">
-                    {editPlayerLevel}
-                  </Text>
-                  <AppIcon
-                    name={
-                      isEditLevelDropdownOpen ? "chevron.up" : "chevron.down"
-                    }
-                    tintColor={theme.textSecondary}
-                    size={16}
-                  />
-                </Pressable>
-
-                {isEditLevelDropdownOpen && (
-                  <View className="absolute z-50 mt-2 w-full rounded-2xl bg-background border border-border shadow-lg overflow-hidden">
-                    {["Beginner", "Intermediate", "Advanced"].map((level) => (
+              <View className="flex-row gap-3">
+                {(["Beginner", "Intermediate", "Advanced"] as const).map(
+                  (level) => {
+                    const isActive = editPlayerLevel === level;
+                    return (
                       <Pressable
                         key={level}
-                        onPress={() => {
-                          setEditPlayerLevel(
-                            level as "Beginner" | "Intermediate" | "Advanced",
-                          );
-                          setIsEditLevelDropdownOpen(false);
-                        }}
-                        className="px-4 py-4"
+                        onPress={() => setEditPlayerLevel(level)}
+                        className={`flex-1 items-center justify-center py-4 rounded-3xl border transition-all active:scale-95 ${
+                          isActive
+                            ? "bg-primary/10 border-primary"
+                            : "bg-secondary border-black/5"
+                        }`}
                       >
                         <Text
-                          className={`text-sm font-medium ${
-                            editPlayerLevel === level
-                              ? "text-primary"
-                              : "text-foreground"
+                          className={`text-[10px] font-extrabold uppercase tracking-wider text-center ${
+                            isActive ? "text-primary" : "text-muted-foreground"
                           }`}
                         >
                           {level}
                         </Text>
                       </Pressable>
-                    ))}
-                  </View>
+                    );
+                  },
                 )}
               </View>
             </View>
@@ -620,7 +658,7 @@ export default function PlayersScreen() {
           onPress={closeRemovePlayerModal}
         >
           <Pressable
-            className="w-full max-w-md rounded-[28px] bg-background p-6 shadow-lg"
+            className="w-full max-w-md rounded-[28px] bg-background p-6"
             onPress={(e) => e.stopPropagation()}
           >
             <Text className="text-lg font-extrabold text-foreground mb-2">

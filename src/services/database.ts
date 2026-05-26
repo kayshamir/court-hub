@@ -83,6 +83,27 @@ export async function clearPlayers() {
   await db.delete(players);
 }
 
+export async function updatePlayerStatus(id: number, status: "active" | "inactive") {
+  await db
+    .update(players)
+    .set({ status })
+    .where(eq(players.id, id));
+}
+
+export async function resetAllPlayersToInactive() {
+  await db
+    .update(players)
+    .set({ status: "inactive" });
+}
+
+export async function getActivePlayers(): Promise<DBPlayer[]> {
+  return db
+    .select()
+    .from(players)
+    .where(eq(players.status, "active"))
+    .orderBy(desc(players.isTopPerformer), players.rank);
+}
+
 // Matches
 export async function addMatch(
   teamA: string[],

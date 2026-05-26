@@ -20,6 +20,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+const SCREEN_OPTIONS = {
+  presentation: "modal" as const,
+  animation: "slide_from_bottom" as const,
+};
+
 export default function CreateCourtScreen() {
   const router = useRouter();
   const safeAreaInsets = useSafeAreaInsets();
@@ -50,9 +55,7 @@ export default function CreateCourtScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <Stack.Screen
-        options={{ presentation: "modal", animation: "slide_from_bottom" }}
-      />
+      <Stack.Screen options={SCREEN_OPTIONS} />
       {/* Header is OUTSIDE KAV — so keyboardVerticalOffset = headerHeight is correct */}
       <View
         className="flex-row items-center justify-between px-5 border-b border-black/5 bg-background"

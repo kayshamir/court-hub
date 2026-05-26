@@ -1,10 +1,17 @@
 import { AppIcon } from "@/components/ui/icon";
 import { BottomTabInset, Spacing } from "@/constants/theme";
-import { useTheme } from "@/hooks/use-theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useTheme } from "@/hooks/use-theme";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Platform, Pressable, ScrollView, Text, View } from "react-native";
+import {
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function DashboardScreen() {
@@ -51,18 +58,12 @@ export default function DashboardScreen() {
                 Sports Queue & Scoring
               </Text>
             </View>
-            {/* <View className="flex-row gap-3">
-              <Pressable className="w-10 h-10 rounded-full bg-secondary items-center justify-center active:opacity-70">
-                <AppIcon
-                  name="bell.fill"
-                  tintColor={theme.foreground}
-                  size={18}
-                />
-              </Pressable>
-              <Pressable className="w-10 h-10 rounded-full bg-primary items-center justify-center active:opacity-70">
-                <Text className="text-white text-xs font-bold">JD</Text>
-              </Pressable>
-            </View> */}
+            <View className="flex-row gap-3">
+              <Image
+                source={require("@/assets/images/icon.png")}
+                style={{ width: 50, height: 50 }}
+              />
+            </View>
           </View>
 
           {/* Quick Stats Grid */}

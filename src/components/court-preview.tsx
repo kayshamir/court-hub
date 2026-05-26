@@ -68,7 +68,7 @@ function PickleballLines({ w, h }: { w: number; h: number }) {
 
 function BadmintonLines({ w, h }: { w: number; h: number }) {
   const stroke = "rgba(255,255,255,0.85)";
-  const strokeThin = "rgba(255,255,255,0.5)";
+  const strokeThin = "rgba(255,255,255,0.55)";
   const sw = 1.5;
   const midY = h * 0.5;
   const midX = w * 0.5;

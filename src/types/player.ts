@@ -1,4 +1,7 @@
 export type SkillLevel = "Beginner" | "Intermediate" | "Advanced";
+export type PlayerStatus = "active" | "inactive";
+export type PairingMode = "same_level" | "balanced_mix" | "random";
+
 export interface Player {
   id: number;
   name: string;
@@ -9,6 +12,7 @@ export interface Player {
   rate: string;
   isTopPerformer: boolean;
   level: SkillLevel;
+  status: PlayerStatus;
 }
 export interface Match {
   id: number;

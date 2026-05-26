@@ -1,15 +1,25 @@
+import { CourtCanvas } from "@/components/court-preview";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
 import { saveMatchResult } from "@/services/match-service";
-import { rotateCourt } from "@/services/queue-service";
+import {
+  getPoolForCourt,
+  reorderWaitingPool,
+  rotateCourt,
+  swapPlayerInMatchup,
+} from "@/services/queue-service";
+import { SportType } from "@/types/court";
+import { Matchup } from "@/types/queue";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   Activity,
   ChevronLeft,
+  GripVertical,
   Info,
   Minus,
   Pause,
   Play,
+  Repeat2,
   RotateCcw,
   Trophy,
   Undo2,
@@ -26,9 +36,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { RenderItemParams } from "react-native-draggable-flatlist";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CourtCanvas } from "@/components/court-preview";
-import { SportType } from "@/types/court";
 
 const WIN_OPTIONS = [11, 15, 21, 25];
 
@@ -59,7 +68,11 @@ interface MatchState {
   servingTeam: "A" | "B";
 }
 
-const getPlayerNumber = (player: string, initialTeam: string[], prefix: string) => {
+const getPlayerNumber = (
+  player: string,
+  initialTeam: string[],
+  prefix: string,
+) => {
   if (initialTeam.length <= 1) return prefix;
   const idx = initialTeam.indexOf(player);
   return idx === -1 ? prefix : `${prefix}${idx + 1}`;
@@ -70,6 +83,7 @@ export default function ScoreScreen() {
   const safeAreaInsets = useSafeAreaInsets();
   const theme = useTheme();
   const params = useLocalSearchParams<{
+    courtId?: string;
     courtIndex?: string;
     assignedCount?: string;
     courtName?: string;
@@ -108,17 +122,59 @@ export default function ScoreScreen() {
     { id: number; player: string; action: string; points: string }[]
   >([]);
 
-  // Setup stateful representation of players to track positions [Even (Right), Odd (Left)]
   const initialTeamA = React.useMemo(() => {
-    return teamAFromQueue ?? (matchMode === "singles" ? ["J. Miller"] : ["Miller", "King"]);
-  }, [params.teamA]);
+    return (
+      teamAFromQueue ??
+      (matchMode === "singles" ? ["J. Miller"] : ["Miller", "King"])
+    );
+  }, [params.teamA, matchMode]);
 
   const initialTeamB = React.useMemo(() => {
-    return teamBFromQueue ?? (matchMode === "singles" ? ["A. Chen"] : ["Chen", "Lee"]);
-  }, [params.teamB]);
+    return (
+      teamBFromQueue ??
+      (matchMode === "singles" ? ["A. Chen"] : ["Chen", "Lee"])
+    );
+  }, [params.teamB, matchMode]);
 
-  const [teamAPlayers, setTeamAPlayers] = React.useState<string[]>(initialTeamA);
-  const [teamBPlayers, setTeamBPlayers] = React.useState<string[]>(initialTeamB);
+  const courtId = params.courtId ? parseInt(params.courtId as string, 10) : 1;
+  const [waitingPool, setWaitingPool] = React.useState<Matchup[]>(
+    getPoolForCourt(courtId),
+  );
+  const [swappingMatchup, setSwappingMatchup] = React.useState<Matchup | null>(
+    null,
+  );
+
+  React.useEffect(() => {
+    setWaitingPool(getPoolForCourt(courtId));
+  }, [courtId]);
+
+  const handleDragEnd = ({ data }: { data: Matchup[] }) => {
+    setWaitingPool(data);
+    reorderWaitingPool(
+      courtId,
+      data.map((m) => m.id),
+    );
+  };
+
+  const handleSwapPlayer = (matchup: Matchup, playerId: number) => {
+    const newMatchup = swapPlayerInMatchup(matchup, playerId);
+    const updatedPool = waitingPool.map((m) =>
+      m.id === matchup.id ? newMatchup : m,
+    );
+    setWaitingPool(updatedPool);
+    reorderWaitingPool(
+      courtId,
+      updatedPool.map((m) => m.id),
+    );
+    if (swappingMatchup?.id === matchup.id) {
+      setSwappingMatchup(newMatchup);
+    }
+  };
+
+  const [teamAPlayers, setTeamAPlayers] =
+    React.useState<string[]>(initialTeamA);
+  const [teamBPlayers, setTeamBPlayers] =
+    React.useState<string[]>(initialTeamB);
   const [servingTeam, setServingTeam] = React.useState<"A" | "B">("A");
 
   // History stack for Undo
@@ -177,7 +233,13 @@ export default function ScoreScreen() {
     // Save current state in history
     setHistory((prev) => [
       ...prev,
-      { scoreA, scoreB, teamAPlayers: [...teamAPlayers], teamBPlayers: [...teamBPlayers], servingTeam },
+      {
+        scoreA,
+        scoreB,
+        teamAPlayers: [...teamAPlayers],
+        teamBPlayers: [...teamBPlayers],
+        servingTeam,
+      },
     ]);
 
     const newA = team === "A" ? scoreA + 1 : scoreA;
@@ -189,13 +251,19 @@ export default function ScoreScreen() {
     // Identify which player won the point to log
     let scoringPlayer = "";
     if (team === "A") {
-      scoringPlayer = matchMode === "doubles" && teamAPlayers.length > 1
-        ? (newA % 2 === 0 ? teamAPlayers[1] : teamAPlayers[0])
-        : teamAPlayers[0];
+      scoringPlayer =
+        matchMode === "doubles" && teamAPlayers.length > 1
+          ? newA % 2 === 0
+            ? teamAPlayers[1]
+            : teamAPlayers[0]
+          : teamAPlayers[0];
     } else {
-      scoringPlayer = matchMode === "doubles" && teamBPlayers.length > 1
-        ? (newB % 2 === 0 ? teamBPlayers[1] : teamBPlayers[0])
-        : teamBPlayers[0];
+      scoringPlayer =
+        matchMode === "doubles" && teamBPlayers.length > 1
+          ? newB % 2 === 0
+            ? teamBPlayers[1]
+            : teamBPlayers[0]
+          : teamBPlayers[0];
     }
 
     setRecentPlays((prev) => [
@@ -209,7 +277,11 @@ export default function ScoreScreen() {
     ]);
 
     // Position updates based on server rules
-    if (matchMode === "doubles" && teamAPlayers.length > 1 && teamBPlayers.length > 1) {
+    if (
+      matchMode === "doubles" &&
+      teamAPlayers.length > 1 &&
+      teamBPlayers.length > 1
+    ) {
       if (servingTeam === team) {
         // Serving team scored: they swap court positions
         if (team === "A") {
@@ -236,11 +308,16 @@ export default function ScoreScreen() {
     if (team === "A" && scoreA > 0) {
       setHistory((prev) => [
         ...prev,
-        { scoreA, scoreB, teamAPlayers: [...teamAPlayers], teamBPlayers: [...teamBPlayers], servingTeam },
+        {
+          scoreA,
+          scoreB,
+          teamAPlayers: [...teamAPlayers],
+          teamBPlayers: [...teamBPlayers],
+          servingTeam,
+        },
       ]);
       const newA = scoreA - 1;
       setScoreA(newA);
-      // Revert player positions if they were serving
       if (matchMode === "doubles" && servingTeam === "A") {
         setTeamAPlayers((prev) => [prev[1], prev[0]]);
       }
@@ -248,11 +325,16 @@ export default function ScoreScreen() {
     if (team === "B" && scoreB > 0) {
       setHistory((prev) => [
         ...prev,
-        { scoreA, scoreB, teamAPlayers: [...teamAPlayers], teamBPlayers: [...teamBPlayers], servingTeam },
+        {
+          scoreA,
+          scoreB,
+          teamAPlayers: [...teamAPlayers],
+          teamBPlayers: [...teamBPlayers],
+          servingTeam,
+        },
       ]);
       const newB = scoreB - 1;
       setScoreB(newB);
-      // Revert player positions if they were serving
       if (matchMode === "doubles" && servingTeam === "B") {
         setTeamBPlayers((prev) => [prev[1], prev[0]]);
       }
@@ -291,16 +373,9 @@ export default function ScoreScreen() {
     if (!winner) return;
     setIsSaving(true);
     try {
-      // Save results
       await saveMatchResult(teamAPlayers, teamBPlayers, scoreA, scoreB, winner);
-      // Rotate the queue
-      if (params.courtIndex !== undefined && params.assignedCount !== undefined) {
-        rotateCourt(
-          parseInt(params.courtIndex),
-          parseInt(params.assignedCount),
-          teamAPlayers,
-          teamBPlayers,
-        );
+      if (params.courtId !== undefined) {
+        rotateCourt(parseInt(params.courtId));
       }
       setWinner(null);
       router.back();
@@ -339,17 +414,61 @@ export default function ScoreScreen() {
   const leftColor = isSwapped ? "bg-[#1E3A8A]" : "bg-[#C1121F]";
   const rightColor = isSwapped ? "bg-[#C1121F]" : "bg-[#1E3A8A]";
 
+  const renderMatchupItem = ({
+    item,
+    drag,
+    isActive,
+  }: RenderItemParams<Matchup>) => {
+    return (
+      <View
+        className={`flex-row items-center p-4 bg-secondary rounded-3xl border mb-3 ${isActive ? "opacity-70 scale-[0.98] border-primary" : "border-border"}`}
+      >
+        <Pressable
+          onLongPress={drag}
+          className="pr-3 pl-1 py-4 justify-center items-center"
+        >
+          <GripVertical size={20} color={theme.textSecondary} />
+        </Pressable>
+        <View className="flex-1 gap-2">
+          <Text className="text-sm font-black text-foreground">
+            {item.teamA.map((p) => p.name).join(" & ")}{" "}
+            <Text className="text-muted-foreground font-medium text-xs">
+              vs
+            </Text>{" "}
+            {item.teamB.map((p) => p.name).join(" & ")}
+          </Text>
+          <View className="flex-row items-center justify-between">
+            <Text className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+              Upcoming Match
+            </Text>
+            <Pressable
+              onPress={() => setSwappingMatchup(item)}
+              className="bg-primary/10 px-3 py-1.5 rounded-full flex-row items-center gap-1.5 active:scale-95"
+            >
+              <Repeat2 size={12} color="#C1121F" />
+              <Text className="text-[10px] font-bold text-primary text-[#C1121F] uppercase">
+                Swap Players
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View className="flex-1 bg-background">
       <ScrollView
-        className="flex-1"
         contentContainerStyle={[
-          { paddingTop: safeAreaInsets.top + Spacing.two },
+          {
+            paddingTop: safeAreaInsets.top + Spacing.two,
+            paddingHorizontal: 20,
+          },
           contentPlatformStyle,
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View className="px-5 max-w-[800px] w-full self-center gap-6">
+        <View className="max-w-[800px] w-full self-center gap-6 pb-6">
           {/* Header */}
           <View className="flex-row justify-between items-center py-2">
             <View className="flex-row items-center gap-3">
@@ -361,11 +480,11 @@ export default function ScoreScreen() {
               </Pressable>
               <View>
                 <Text className="text-3xl font-extrabold tracking-tight text-foreground">
-                  Live Score
+                  {params.courtName}
                 </Text>
                 {params.courtName ? (
                   <Text className="text-sm font-medium text-muted-foreground">
-                    Scoring on {params.courtName} ({params.sport})
+                    Live Scoring ({params.sport})
                   </Text>
                 ) : (
                   <Text className="text-sm font-medium text-muted-foreground">
@@ -393,15 +512,19 @@ export default function ScoreScreen() {
               <View className="flex-row gap-4 items-center">
                 <View className="flex-row items-center gap-1.5">
                   <View className="w-2.5 h-2.5 rounded-full bg-[#C1121F]" />
-                  <Text className="text-[10px] font-bold text-muted-foreground">TEAM A (RED)</Text>
+                  <Text className="text-[10px] font-bold text-muted-foreground">
+                    TEAM A (RED)
+                  </Text>
                 </View>
                 <View className="flex-row items-center gap-1.5">
                   <View className="w-2.5 h-2.5 rounded-full bg-[#1E3A8A]" />
-                  <Text className="text-[10px] font-bold text-muted-foreground">TEAM B (BLUE)</Text>
+                  <Text className="text-[10px] font-bold text-muted-foreground">
+                    TEAM B (BLUE)
+                  </Text>
                 </View>
               </View>
             </View>
-            
+
             <CourtCanvas sportType={sportType} aspectRatio={2.2 / 1}>
               {/* Left Half */}
               <View
@@ -412,12 +535,18 @@ export default function ScoreScreen() {
                 {matchMode === "doubles" && leftHalfPlayers.length > 1 ? (
                   <View className="items-center justify-center relative w-12 h-12">
                     <View
-                      className={`w-10 h-10 rounded-full items-center justify-center shadow-lg border-2 border-white ${leftColor} ${
-                        leftHalfPlayers[1] === currentServerName ? "scale-110 border-yellow-400" : ""
+                      className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${leftColor} ${
+                        leftHalfPlayers[1] === currentServerName
+                          ? "scale-110 border-yellow-400"
+                          : ""
                       }`}
                     >
                       <Text className="text-white text-xs font-black leading-none">
-                        {getPlayerNumber(leftHalfPlayers[1], leftInitialTeam, leftPrefix)}
+                        {getPlayerNumber(
+                          leftHalfPlayers[1],
+                          leftInitialTeam,
+                          leftPrefix,
+                        )}
                       </Text>
                       {leftHalfPlayers[1] === currentServerName && (
                         <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase tracking-wide">
@@ -441,12 +570,18 @@ export default function ScoreScreen() {
                 {/* Even Side (Bottom) */}
                 <View className="items-center justify-center relative w-12 h-12">
                   <View
-                    className={`w-10 h-10 rounded-full items-center justify-center shadow-lg border-2 border-white ${leftColor} ${
-                      leftHalfPlayers[0] === currentServerName ? "scale-110 border-yellow-400" : ""
+                    className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${leftColor} ${
+                      leftHalfPlayers[0] === currentServerName
+                        ? "scale-110 border-yellow-400"
+                        : ""
                     }`}
                   >
                     <Text className="text-white text-xs font-black leading-none">
-                      {getPlayerNumber(leftHalfPlayers[0], leftInitialTeam, leftPrefix)}
+                      {getPlayerNumber(
+                        leftHalfPlayers[0],
+                        leftInitialTeam,
+                        leftPrefix,
+                      )}
                     </Text>
                     {leftHalfPlayers[0] === currentServerName && (
                       <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase tracking-wide">
@@ -475,12 +610,18 @@ export default function ScoreScreen() {
                 {/* Even Side (Top) */}
                 <View className="items-center justify-center relative w-12 h-12">
                   <View
-                    className={`w-10 h-10 rounded-full items-center justify-center shadow-lg border-2 border-white ${rightColor} ${
-                      rightHalfPlayers[0] === currentServerName ? "scale-110 border-yellow-400" : ""
+                    className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${rightColor} ${
+                      rightHalfPlayers[0] === currentServerName
+                        ? "scale-110 border-yellow-400"
+                        : ""
                     }`}
                   >
                     <Text className="text-white text-xs font-black leading-none">
-                      {getPlayerNumber(rightHalfPlayers[0], rightInitialTeam, rightPrefix)}
+                      {getPlayerNumber(
+                        rightHalfPlayers[0],
+                        rightInitialTeam,
+                        rightPrefix,
+                      )}
                     </Text>
                     {rightHalfPlayers[0] === currentServerName && (
                       <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase tracking-wide">
@@ -504,12 +645,18 @@ export default function ScoreScreen() {
                 {matchMode === "doubles" && rightHalfPlayers.length > 1 ? (
                   <View className="items-center justify-center relative w-12 h-12">
                     <View
-                      className={`w-10 h-10 rounded-full items-center justify-center shadow-lg border-2 border-white ${rightColor} ${
-                        rightHalfPlayers[1] === currentServerName ? "scale-110 border-yellow-400" : ""
+                      className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${rightColor} ${
+                        rightHalfPlayers[1] === currentServerName
+                          ? "scale-110 border-yellow-400"
+                          : ""
                       }`}
                     >
                       <Text className="text-white text-xs font-black leading-none">
-                        {getPlayerNumber(rightHalfPlayers[1], rightInitialTeam, rightPrefix)}
+                        {getPlayerNumber(
+                          rightHalfPlayers[1],
+                          rightInitialTeam,
+                          rightPrefix,
+                        )}
                       </Text>
                       {rightHalfPlayers[1] === currentServerName && (
                         <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase tracking-wide">
@@ -531,7 +678,7 @@ export default function ScoreScreen() {
                 ) : null}
               </View>
             </CourtCanvas>
-            
+
             {/* Visual labels indicating active server name */}
             <View className="flex-row justify-between pt-1 px-1">
               <Text className="text-[10px] font-semibold text-muted-foreground">
@@ -552,111 +699,113 @@ export default function ScoreScreen() {
             )}
           </View>
 
-          {/* Giant Tappable Scoreboard */}
-          <View className="flex-row gap-4 items-center justify-between">
-            {/* Team A Card */}
-            <View className="flex-1 items-center">
-              <View className="bg-[#C1121F]/10 px-3.5 py-1 rounded-full mb-3">
-                <Text className="text-[10px] font-extrabold text-[#C1121F] uppercase tracking-wide">
-                  {matchMode === "doubles" ? "Team A" : teamAPlayers[0]}
+          {/* Giant Tappable Scoreboard and Quick Actions Card */}
+          <View className="bg-secondary rounded-3xl p-5 border border-border mb-2 gap-6">
+            <View className="flex-row gap-4 items-center justify-between">
+              {/* Team A Card */}
+              <View className="flex-1 items-center">
+                <View className="bg-[#C1121F]/10 px-3.5 py-1 rounded-full mb-3">
+                  <Text className="text-[10px] font-extrabold text-[#C1121F] uppercase tracking-wide">
+                    {matchMode === "doubles" ? "Team A" : teamAPlayers[0]}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => addPoint("A")}
+                  className="bg-[#C1121F] border border-[#C1121F] rounded-[32px] w-full aspect-[1/1] items-center justify-center active:scale-95 transition-transformC1121F]/20"
+                >
+                  <Text className="text-7xl font-black text-white">
+                    {scoreA}
+                  </Text>
+                  <Text className="text-[9px] font-extrabold text-white/70 uppercase tracking-widest mt-2">
+                    Tap to score
+                  </Text>
+                </Pressable>
+                <View className="flex-row justify-center mt-3">
+                  <Pressable
+                    onPress={() => removePoint("A")}
+                    disabled={scoreA === 0}
+                    className={`w-12 h-12 bg-background border border-border rounded-full items-center justify-center active:scale-90 ${scoreA === 0 ? "opacity-30" : ""}`}
+                  >
+                    <Minus size={16} color={theme.foreground} />
+                  </Pressable>
+                </View>
+              </View>
+
+              <View className="px-1 items-center justify-center">
+                <Text className="text-xl font-black text-muted-foreground opacity-30">
+                  VS
                 </Text>
               </View>
+
+              {/* Team B Card */}
+              <View className="flex-1 items-center">
+                <View className="bg-[#1E3A8A]/10 px-3.5 py-1 rounded-full mb-3">
+                  <Text className="text-[10px] font-extrabold text-[#1E3A8A] uppercase tracking-wide">
+                    {matchMode === "doubles" ? "Team B" : teamBPlayers[0]}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => addPoint("B")}
+                  className="bg-[#1E3A8A] border border-[#1E3A8A] rounded-[32px] w-full aspect-[1/1] items-center justify-center active:scale-95 transition-transform1E3A8A]/20"
+                >
+                  <Text className="text-7xl font-black text-white">
+                    {scoreB}
+                  </Text>
+                  <Text className="text-[9px] font-extrabold text-white/70 uppercase tracking-widest mt-2">
+                    Tap to score
+                  </Text>
+                </Pressable>
+                <View className="flex-row justify-center mt-3">
+                  <Pressable
+                    onPress={() => removePoint("B")}
+                    disabled={scoreB === 0}
+                    className={`w-12 h-12 bg-background border border-border rounded-full items-center justify-center active:scale-90 ${scoreB === 0 ? "opacity-30" : ""}`}
+                  >
+                    <Minus size={16} color={theme.foreground} />
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+
+            {/* Quick Actions */}
+            <View className="flex-row gap-3 pt-4 border-t border-border justify-center">
               <Pressable
-                onPress={() => addPoint("A")}
-                className="bg-[#C1121F] border border-[#C1121F] rounded-[32px] w-full aspect-[1/1] items-center justify-center active:scale-95 transition-transform shadow-lg shadow-[#C1121F]/20"
+                onPress={() => setIsPaused((p) => !p)}
+                className="flex-row items-center bg-background px-5 py-2.5 rounded-full border border-border active:opacity-70 gap-2"
               >
-                <Text className="text-7xl font-black text-white">
-                  {scoreA}
-                </Text>
-                <Text className="text-[9px] font-extrabold text-white/70 uppercase tracking-widest mt-2">
-                  Tap to score
+                {isPaused ? (
+                  <Play size={12} color={theme.foreground} />
+                ) : (
+                  <Pause size={12} color={theme.foreground} />
+                )}
+                <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  {isPaused ? "Resume" : "Pause"}
                 </Text>
               </Pressable>
-              <View className="flex-row justify-center mt-3">
-                <Pressable
-                  onPress={() => removePoint("A")}
-                  disabled={scoreA === 0}
-                  className={`w-12 h-12 bg-secondary border border-border rounded-full items-center justify-center active:scale-90 ${scoreA === 0 ? "opacity-30" : ""}`}
-                >
-                  <Minus size={16} color={theme.foreground} />
-                </Pressable>
-              </View>
-            </View>
 
-            <View className="px-1 items-center justify-center">
-              <Text className="text-xl font-black text-muted-foreground opacity-30">
-                VS
-              </Text>
-            </View>
-
-            {/* Team B Card */}
-            <View className="flex-1 items-center">
-              <View className="bg-[#1E3A8A]/10 px-3.5 py-1 rounded-full mb-3">
-                <Text className="text-[10px] font-extrabold text-[#1E3A8A] uppercase tracking-wide">
-                  {matchMode === "doubles" ? "Team B" : teamBPlayers[0]}
-                </Text>
-              </View>
               <Pressable
-                onPress={() => addPoint("B")}
-                className="bg-[#1E3A8A] border border-[#1E3A8A] rounded-[32px] w-full aspect-[1/1] items-center justify-center active:scale-95 transition-transform shadow-lg shadow-[#1E3A8A]/20"
+                onPress={handleUndo}
+                disabled={history.length === 0}
+                className={`flex-row items-center bg-background px-5 py-2.5 rounded-full border border-border gap-2 ${
+                  history.length === 0 ? "opacity-40" : "active:opacity-70"
+                }`}
               >
-                <Text className="text-7xl font-black text-white">
-                  {scoreB}
-                </Text>
-                <Text className="text-[9px] font-extrabold text-white/70 uppercase tracking-widest mt-2">
-                  Tap to score
+                <Undo2 size={12} color={theme.foreground} />
+                <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  Undo
                 </Text>
               </Pressable>
-              <View className="flex-row justify-center mt-3">
-                <Pressable
-                  onPress={() => removePoint("B")}
-                  disabled={scoreB === 0}
-                  className={`w-12 h-12 bg-secondary border border-border rounded-full items-center justify-center active:scale-90 ${scoreB === 0 ? "opacity-30" : ""}`}
-                >
-                  <Minus size={16} color={theme.foreground} />
-                </Pressable>
-              </View>
+
+              <Pressable
+                onPress={handleReset}
+                className="flex-row items-center bg-background px-5 py-2.5 rounded-full border border-border active:opacity-70 gap-2"
+              >
+                <RotateCcw size={12} color={theme.foreground} />
+                <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  Reset
+                </Text>
+              </Pressable>
             </View>
-          </View>
-
-          {/* Quick Actions */}
-          <View className="flex-row gap-3 pt-3 border-t border-border justify-center">
-            <Pressable
-              onPress={() => setIsPaused((p) => !p)}
-              className="flex-row items-center bg-secondary px-5 py-2.5 rounded-full border border-border active:opacity-70 gap-2"
-            >
-              {isPaused ? (
-                <Play size={12} color={theme.foreground} />
-              ) : (
-                <Pause size={12} color={theme.foreground} />
-              )}
-              <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
-                {isPaused ? "Resume" : "Pause"}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={handleUndo}
-              disabled={history.length === 0}
-              className={`flex-row items-center bg-secondary px-5 py-2.5 rounded-full border border-border gap-2 ${
-                history.length === 0 ? "opacity-40" : "active:opacity-70"
-              }`}
-            >
-              <Undo2 size={12} color={theme.foreground} />
-              <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
-                Undo
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={handleReset}
-              className="flex-row items-center bg-secondary px-5 py-2.5 rounded-full border border-border active:opacity-70 gap-2"
-            >
-              <RotateCcw size={12} color={theme.foreground} />
-              <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
-                Reset
-              </Text>
-            </Pressable>
           </View>
 
           {/* Match Settings (Win target selection) */}
@@ -798,10 +947,137 @@ export default function ScoreScreen() {
               </View>
             )}
           </View>
+
+          {/* Waiting Pool Header */}
+          <View className="gap-2 mt-4 pt-4 border-t border-border">
+            <Text className="text-lg font-extrabold text-foreground">
+              Waiting Pool
+            </Text>
+            <Text className="text-xs text-muted-foreground">
+              Matches up next. Tap Swap Players to edit matchups.
+            </Text>
+          </View>
+
+          {/* Waiting Pool (Standard Map without Drag & Drop) */}
+          {waitingPool.map((matchup) => (
+            <View
+              key={matchup.id}
+              className={`flex-row items-center p-4 bg-secondary rounded-3xl border mb-3 border-border`}
+            >
+              <View className="flex-1 gap-2">
+                <Text className="text-sm font-black text-foreground">
+                  {matchup.teamA.map((p) => p.name).join(" & ")}{" "}
+                  <Text className="text-muted-foreground font-medium text-xs">
+                    vs
+                  </Text>{" "}
+                  {matchup.teamB.map((p) => p.name).join(" & ")}
+                </Text>
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                    Upcoming Match
+                  </Text>
+                  <Pressable
+                    onPress={() => setSwappingMatchup(matchup)}
+                    className="bg-primary/10 px-3 py-1.5 rounded-full flex-row items-center gap-1.5 active:scale-95"
+                  >
+                    <Repeat2 size={12} color="#C1121F" />
+                    <Text className="text-[10px] font-bold text-primary text-[#C1121F] uppercase">
+                      Swap Players
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ))}
         </View>
       </ScrollView>
 
-      {/* Match Over Modal */}
+      {/* Swap Modal */}
+      <Modal visible={!!swappingMatchup} animationType="fade" transparent>
+        <Pressable
+          className="flex-1 bg-black/60 items-center justify-center px-6"
+          onPress={() => setSwappingMatchup(null)}
+        >
+          <Pressable
+            className="bg-background rounded-[32px] p-6 w-full max-w-sm gap-5 border border-border shadow-lg"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View className="flex-row items-center justify-between">
+              <Text className="text-lg font-extrabold text-foreground">
+                Swap Players
+              </Text>
+              <Pressable
+                onPress={() => setSwappingMatchup(null)}
+                className="w-8 h-8 rounded-full bg-secondary items-center justify-center"
+              >
+                <Text className="text-xs font-bold text-muted-foreground">
+                  X
+                </Text>
+              </Pressable>
+            </View>
+            <Text className="text-sm text-muted-foreground">
+              Tap a player to instantly swap them to the opposing team.
+            </Text>
+
+            {swappingMatchup && (
+              <View className="flex-row gap-4 mt-2">
+                <View className="flex-1 gap-3">
+                  <View className="bg-red-500/10 py-1 rounded-full items-center">
+                    <Text className="text-[10px] font-black text-red-500 uppercase">
+                      Team A
+                    </Text>
+                  </View>
+                  {swappingMatchup.teamA.map((p) => (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => handleSwapPlayer(swappingMatchup, p.id)}
+                      className="bg-secondary border border-border p-3 rounded-2xl active:bg-primary/5 transition-colors items-center"
+                    >
+                      <Text className="text-xs font-bold text-foreground">
+                        {p.name}
+                      </Text>
+                      <Text className="text-[9px] text-muted-foreground mt-0.5 font-medium">
+                        {p.level}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <View className="flex-1 gap-3">
+                  <View className="bg-blue-500/10 py-1 rounded-full items-center">
+                    <Text className="text-[10px] font-black text-blue-500 uppercase">
+                      Team B
+                    </Text>
+                  </View>
+                  {swappingMatchup.teamB.map((p) => (
+                    <Pressable
+                      key={p.id}
+                      onPress={() => handleSwapPlayer(swappingMatchup, p.id)}
+                      className="bg-secondary border border-border p-3 rounded-2xl active:bg-primary/5 transition-colors items-center"
+                    >
+                      <Text className="text-xs font-bold text-foreground">
+                        {p.name}
+                      </Text>
+                      <Text className="text-[9px] text-muted-foreground mt-0.5 font-medium">
+                        {p.level}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <Pressable
+              onPress={() => setSwappingMatchup(null)}
+              className="mt-2 bg-primary py-3.5 rounded-full items-center justify-center bg-[#C1121F]"
+            >
+              <Text className="text-white text-sm font-extrabold uppercase tracking-widest">
+                Done
+              </Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
       <Modal visible={!!winner} animationType="fade" transparent>
         <View className="flex-1 bg-black/60 items-center justify-center px-6">
           <View className="bg-background rounded-[32px] p-8 w-full max-w-sm gap-5 items-center">
@@ -820,7 +1096,9 @@ export default function ScoreScreen() {
               </Text>
             </View>
             <View className="bg-secondary rounded-2xl px-8 py-3 flex-row gap-4 items-center">
-              <Text className="text-3xl font-black text-primary text-[#C1121F]">{scoreA}</Text>
+              <Text className="text-3xl font-black text-primary text-[#C1121F]">
+                {scoreA}
+              </Text>
               <Text className="text-lg font-black text-muted-foreground opacity-40">
                 –
               </Text>

@@ -1,71 +1,26 @@
+import { CourtCanvas } from "@/components/court-preview";
 import { AppIcon } from "@/components/ui/icon";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { DBCourt } from "@/db/schema";
 import { useTheme } from "@/hooks/use-theme";
 import { getCourts } from "@/services/database";
+import { fetchActivePlayers, endSession } from "@/services/player-service";
 import {
-  getPool,
+  buildBalancedPool,
+  getPoolForCourt,
+  setPoolForCourt,
   subscribeToPool,
-  MOCK_COURTS,
-  shuffleWaitingPool,
+  clearAllPools,
+  getPairingMode,
+  subscribeToPairingMode
 } from "@/services/queue-service";
-import { Team } from "@/types/queue";
 import { SportType } from "@/types/court";
-import { CourtCanvas } from "@/components/court-preview";
-import React from "react";
-import {
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Matchup } from "@/types/queue";
+import { PairingMode, Player } from "@/types/player";
 import { useRouter } from "expo-router";
+import React from "react";
+import { Platform, Pressable, ScrollView, Text, View, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-function getCourtMatchups(pool: Team[], courtIndex: number, courtsCount: number) {
-  const matchups: { teamA: string[]; teamB: string[]; label?: string }[] = [];
-
-  // Current matchup
-  const currentA = pool[courtIndex * 4]?.players ?? null;
-  const currentB = pool[courtIndex * 4 + 1]?.players ?? null;
-
-  // Next matchup (Matchup #1)
-  const nextA = pool[courtIndex * 4 + 2]?.players ?? null;
-  const nextB = pool[courtIndex * 4 + 3]?.players ?? null;
-
-  if (currentA && currentB) {
-    matchups.push({ teamA: currentA, teamB: currentB, label: "Live" });
-  }
-  if (nextA && nextB) {
-    matchups.push({ teamA: nextA, teamB: nextB, label: "Next" });
-  }
-
-  // Subsequent matchups from the waiting pool (index courtsCount * 4)
-  const waitingPool = pool.slice(courtsCount * 4);
-  const waitingMatches: { teamA: string[]; teamB: string[] }[] = [];
-  for (let i = 0; i < waitingPool.length; i += 2) {
-    if (waitingPool[i] && waitingPool[i + 1]) {
-      waitingMatches.push({
-        teamA: waitingPool[i].players,
-        teamB: waitingPool[i + 1].players,
-      });
-    }
-  }
-
-  // Distribute waiting matches among courts
-  waitingMatches.forEach((match, idx) => {
-    if (idx % courtsCount === courtIndex) {
-      matchups.push({
-        teamA: match.teamA,
-        teamB: match.teamB,
-      });
-    }
-  });
-
-  return matchups;
-}
 
 function CourtCard({
   court,
@@ -73,7 +28,7 @@ function CourtCard({
   onPressScore,
 }: {
   court: DBCourt;
-  matchups: { teamA: string[]; teamB: string[]; label?: string }[];
+  matchups: Matchup[];
   onPressScore: () => void;
 }) {
   const currentMatch = matchups[0];
@@ -81,7 +36,10 @@ function CourtCard({
   const matchType = court.matchType;
 
   return (
-    <View className="bg-secondary rounded-[32px] p-5 border border-border gap-5 mb-5 w-full max-w-[800px] self-center">
+    <Pressable 
+      className="bg-secondary rounded-[32px] p-5 border border-border gap-5 mb-5 w-full max-w-[800px] self-center active:scale-[0.98] transition-transform"
+      onPress={onPressScore}
+    >
       {/* Header */}
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center gap-3">
@@ -89,23 +47,16 @@ function CourtCard({
             <AppIcon name="sportscourt.fill" tintColor="#C1121F" size={18} />
           </View>
           <View>
-            <Text className="text-lg font-black text-foreground">{court.name}</Text>
+            <Text className="text-lg font-black text-foreground">
+              {court.name}
+            </Text>
             <Text className="text-xs font-semibold text-muted-foreground">
               {court.sport} • {court.matchType}
             </Text>
           </View>
         </View>
-        
-        {hasMatch ? (
-          <Pressable
-            onPress={onPressScore}
-            className="bg-primary px-4 py-2 rounded-full active:scale-95 flex-row items-center gap-1 bg-[#C1121F]"
-          >
-            <Text className="text-white text-xs font-extrabold uppercase tracking-wide">
-              Score Match
-            </Text>
-          </Pressable>
-        ) : (
+
+        {!hasMatch && (
           <View className="bg-muted-foreground/10 px-4 py-2 rounded-full">
             <Text className="text-muted-foreground text-xs font-extrabold uppercase tracking-wide">
               Empty
@@ -114,8 +65,8 @@ function CourtCard({
         )}
       </View>
 
-      {/* Court board visualizer - occupies the prominent space */}
-      <Pressable onPress={() => hasMatch && onPressScore()} className="active:opacity-95">
+      {/* Court board visualizer */}
+      <View className="overflow-hidden rounded-2xl">
         <CourtCanvas
           sportType={court.sport.toLowerCase() as SportType}
           aspectRatio={2.2 / 1}
@@ -127,20 +78,20 @@ function CourtCard({
                 style={{ width: "50%" }}
                 className="absolute left-0 top-0 bottom-0 justify-center items-center gap-4 flex-row"
               >
-                {matchType === "doubles" && currentMatch.teamA.length > 1 ? (
+                {matchType.toLowerCase() === "doubles" && currentMatch.teamA.length > 1 ? (
                   <>
-                    <View className="bg-red-600 border border-white/20 w-8 h-8 rounded-full items-center justify-center shadow-lg">
-                      <Text className="text-xs font-black text-white">A1</Text>
+                    <View className="bg-red-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                      <Text className="text-[10px] font-black text-white">{currentMatch.teamA[0].name}</Text>
                     </View>
-                    <View className="bg-red-600 border border-white/20 w-8 h-8 rounded-full items-center justify-center shadow-lg">
-                      <Text className="text-xs font-black text-white">A2</Text>
+                    <View className="bg-red-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                      <Text className="text-[10px] font-black text-white">{currentMatch.teamA[1].name}</Text>
                     </View>
                   </>
-                ) : (
-                  <View className="bg-red-600 border border-white/20 w-8 h-8 rounded-full items-center justify-center shadow-lg">
-                    <Text className="text-xs font-black text-white">A</Text>
+                ) : currentMatch.teamA.length > 0 ? (
+                  <View className="bg-red-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                    <Text className="text-[10px] font-black text-white">{currentMatch.teamA[0].name}</Text>
                   </View>
-                )}
+                ) : null}
               </View>
 
               {/* Right Half (Team B) */}
@@ -148,20 +99,20 @@ function CourtCard({
                 style={{ width: "50%" }}
                 className="absolute right-0 top-0 bottom-0 justify-center items-center gap-4 flex-row"
               >
-                {matchType === "doubles" && currentMatch.teamB.length > 1 ? (
+                {matchType.toLowerCase() === "doubles" && currentMatch.teamB.length > 1 ? (
                   <>
-                    <View className="bg-blue-600 border border-white/20 w-8 h-8 rounded-full items-center justify-center shadow-lg">
-                      <Text className="text-xs font-black text-white">B1</Text>
+                    <View className="bg-blue-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                      <Text className="text-[10px] font-black text-white">{currentMatch.teamB[0].name}</Text>
                     </View>
-                    <View className="bg-blue-600 border border-white/20 w-8 h-8 rounded-full items-center justify-center shadow-lg">
-                      <Text className="text-xs font-black text-white">B2</Text>
+                    <View className="bg-blue-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                      <Text className="text-[10px] font-black text-white">{currentMatch.teamB[1].name}</Text>
                     </View>
                   </>
-                ) : (
-                  <View className="bg-blue-600 border border-white/20 w-8 h-8 rounded-full items-center justify-center shadow-lg">
-                    <Text className="text-xs font-black text-white">B</Text>
+                ) : currentMatch.teamB.length > 0 ? (
+                  <View className="bg-blue-600 border border-white/20 px-2 py-1 rounded-full items-center justify-center">
+                    <Text className="text-[10px] font-black text-white">{currentMatch.teamB[0].name}</Text>
                   </View>
-                )}
+                ) : null}
               </View>
             </>
           ) : (
@@ -172,26 +123,26 @@ function CourtCard({
             </View>
           )}
         </CourtCanvas>
-      </Pressable>
+      </View>
 
-      {/* Matchups list listed vertically */}
+      {/* Matchups list */}
       <View className="gap-3.5 pt-4 border-t border-border">
         <Text className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest">
           Match Queue
         </Text>
-        
+
         {matchups.length === 0 ? (
           <Text className="text-xs font-medium text-muted-foreground">
-            No matchups scheduled.
+            No matchups scheduled. Activate players to populate.
           </Text>
         ) : (
           <View className="gap-2.5">
-            {matchups.map((match, mIdx) => {
+            {matchups.slice(0, 3).map((match, mIdx) => {
               const isLive = mIdx === 0;
               const isNext = mIdx === 1;
               return (
                 <View
-                  key={mIdx}
+                  key={match.id}
                   className={`flex-row justify-between items-center p-3 rounded-2xl border ${
                     isLive
                       ? "bg-primary/5 border-primary/20"
@@ -201,7 +152,11 @@ function CourtCard({
                   <View className="flex-row items-center gap-3">
                     <View
                       className={`w-6 h-6 rounded-full items-center justify-center ${
-                        isLive ? "bg-primary bg-[#C1121F]" : isNext ? "bg-foreground/10" : "bg-secondary"
+                        isLive
+                          ? "bg-primary bg-[#C1121F]"
+                          : isNext
+                            ? "bg-foreground/10"
+                            : "bg-secondary"
                       }`}
                     >
                       <Text
@@ -214,26 +169,37 @@ function CourtCard({
                     </View>
                     <View>
                       <Text className="text-xs font-black text-foreground">
-                        {match.teamA.join(" & ")} vs {match.teamB.join(" & ")}
+                        {match.teamA.map(p => p.name).join(" & ")} <Text className="text-muted-foreground font-medium text-[10px]">vs</Text> {match.teamB.map(p => p.name).join(" & ")}
                       </Text>
                       <Text className="text-[10px] font-semibold text-muted-foreground mt-0.5">
-                        {isLive ? "Current Match" : isNext ? "Next Matchup" : `Upcoming Matchup #${mIdx}`}
+                        {isLive
+                          ? "Current Match"
+                          : isNext
+                            ? "Next Matchup"
+                            : `Upcoming Matchup #${mIdx}`}
                       </Text>
                     </View>
                   </View>
-                  
+
                   {isLive && (
                     <View className="bg-primary/10 px-2 py-0.5 rounded-full bg-[#C1121F]/10">
-                      <Text className="text-[8px] font-extrabold text-primary uppercase text-[#C1121F]">Live</Text>
+                      <Text className="text-[8px] font-extrabold text-primary uppercase text-[#C1121F]">
+                        Live
+                      </Text>
                     </View>
                   )}
                 </View>
               );
             })}
+            {matchups.length > 3 && (
+              <Text className="text-[10px] font-bold text-muted-foreground text-center mt-1">
+                + {matchups.length - 3} more matchups
+              </Text>
+            )}
           </View>
         )}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -243,30 +209,59 @@ export default function QueueScreen() {
   const theme = useTheme();
 
   const [courts, setCourts] = React.useState<DBCourt[]>([]);
-  const [pool, setPoolState] = React.useState<Team[]>(getPool());
+  const [activePlayers, setActivePlayers] = React.useState<Player[]>([]);
+  const [pairingMode, setPairingModeState] = React.useState<PairingMode>(getPairingMode());
+  const [isEndSessionModalVisible, setIsEndSessionModalVisible] = React.useState(false);
+  const [, setForceUpdate] = React.useState(0);
+
+  const loadData = async () => {
+    try {
+      const dbCourts = await getCourts();
+      setCourts(dbCourts);
+      const players = await fetchActivePlayers();
+      setActivePlayers(players);
+
+      // Initialize pools for courts if they don't have one
+      dbCourts.forEach(court => {
+        if (getPoolForCourt(court.id).length === 0 && players.length > 0) {
+          const newPool = buildBalancedPool(players, court.matchType, pairingMode);
+          setPoolForCourt(court.id, newPool);
+        }
+      });
+    } catch (error) {
+      console.error("Error loading queue data:", error);
+    }
+  };
 
   React.useEffect(() => {
-    (async () => {
-      try {
-        const dbCourts = await getCourts();
-        setCourts(dbCourts.length > 0 ? dbCourts : MOCK_COURTS);
-      } catch {
-        setCourts(MOCK_COURTS);
-      }
-    })();
-  }, []);
+    loadData();
+  }, [pairingMode]);
 
+  // Subscribe to pool changes to trigger re-renders
   React.useEffect(() => {
-    return subscribeToPool(() => {
-      setPoolState(getPool());
+    const unsubPool = subscribeToPool(() => {
+      setForceUpdate(prev => prev + 1);
     });
+    
+    const unsubPairing = subscribeToPairingMode((newMode) => {
+      setPairingModeState(newMode);
+    });
+
+    return () => {
+      unsubPool();
+      unsubPairing();
+    };
   }, []);
 
-  const assignedCount = courts.length * 4;
-
-  const handleShuffle = () => {
-    const updated = shuffleWaitingPool(pool, assignedCount);
-    setPoolState(updated);
+  const handleEndSession = async () => {
+    try {
+      await endSession();
+      clearAllPools();
+      setIsEndSessionModalVisible(false);
+      await loadData();
+    } catch (error) {
+      console.error("Error ending session:", error);
+    }
   };
 
   const insets = {
@@ -290,8 +285,8 @@ export default function QueueScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View className="px-5 max-w-[800px] w-full self-center">
+          {/* Header */}
           <View className="flex-row justify-between items-center py-2 mb-6">
             <View>
               <Text className="text-3xl font-extrabold tracking-tight text-foreground">
@@ -302,46 +297,90 @@ export default function QueueScreen() {
               </Text>
             </View>
             <Pressable
-              onPress={handleShuffle}
-              className="bg-secondary px-4 py-2 rounded-full flex-row items-center gap-1.5 border border-border active:opacity-70"
+              onPress={() => setIsEndSessionModalVisible(true)}
+              className="bg-secondary px-4 py-2 rounded-full flex-row items-center gap-1.5 border border-red-500/20 active:opacity-70"
             >
-              <AppIcon name="shuffle" tintColor={theme.foreground} size={12} />
-              <Text className="text-sm font-bold text-foreground">Shuffle</Text>
+              <AppIcon name="stop.circle.fill" tintColor="#ef4444" size={14} />
+              <Text className="text-sm font-bold text-red-500">End Session</Text>
             </Pressable>
           </View>
+
         </View>
 
         {/* Vertical Court Cards list */}
         <View className="px-5">
-          {courts.map((court, idx) => {
-            const matchups = getCourtMatchups(pool, idx, courts.length);
-            return (
-              <CourtCard
-                key={court.id}
-                court={court}
-                matchups={matchups}
-                onPressScore={() => {
-                  const currentMatch = matchups[0];
-                  if (currentMatch) {
+          {courts.length === 0 ? (
+            <View className="py-12 items-center justify-center border border-dashed border-border rounded-3xl bg-secondary/50">
+              <Text className="text-muted-foreground font-medium">No courts available.</Text>
+            </View>
+          ) : (
+            courts.map((court) => {
+              const matchups = getPoolForCourt(court.id);
+              return (
+                <CourtCard
+                  key={court.id}
+                  court={court}
+                  matchups={matchups}
+                  onPressScore={() => {
                     router.push({
                       pathname: "/score",
                       params: {
-                        courtIndex: idx.toString(),
-                        assignedCount: assignedCount.toString(),
+                        courtId: court.id.toString(),
                         courtName: court.name,
                         sport: court.sport,
                         matchType: court.matchType,
-                        teamA: JSON.stringify(currentMatch.teamA),
-                        teamB: JSON.stringify(currentMatch.teamB),
+                        pairingMode,
                       },
                     });
-                  }
-                }}
-              />
-            );
-          })}
+                  }}
+                />
+              );
+            })
+          )}
         </View>
       </ScrollView>
+
+      {/* End Session Modal */}
+      <Modal
+        visible={isEndSessionModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsEndSessionModalVisible(false)}
+      >
+        <Pressable
+          className="flex-1 bg-black/40 items-center justify-center px-6"
+          onPress={() => setIsEndSessionModalVisible(false)}
+        >
+          <Pressable
+            className="w-full max-w-md rounded-[28px] bg-background p-6"
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text className="text-lg font-extrabold text-foreground mb-2">
+              End Session?
+            </Text>
+            <Text className="text-sm text-muted-foreground leading-6">
+              This will reset all active players to inactive and clear all waiting pools. This action cannot be undone.
+            </Text>
+
+            <View className="flex-row justify-end gap-3 mt-6">
+              <Pressable
+                onPress={() => setIsEndSessionModalVisible(false)}
+                className="rounded-full border border-muted-foreground/30 px-4 py-3"
+              >
+                <Text className="text-sm font-semibold text-muted-foreground">
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleEndSession}
+                className="rounded-full bg-red-500 px-4 py-3 items-center justify-center"
+              >
+                <Text className="text-sm font-semibold text-white">End Session</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

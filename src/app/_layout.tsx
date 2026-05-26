@@ -40,8 +40,8 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <AnimatedSplashOverlay />
         <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-      </Stack>
+          <Stack.Screen name="(tabs)" />
+        </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>
   );
