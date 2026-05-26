@@ -19,7 +19,7 @@ import { getGlobalQueue, getActiveMatchups } from "@/services/database";
 import { SportType } from "@/types/court";
 import { PairingMode, Player } from "@/types/player";
 import { Matchup } from "@/types/queue";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React from "react";
 import {
   Modal,
@@ -241,6 +241,12 @@ export default function QueueScreen() {
     await loadData();
     setIsRefreshing(false);
   }, [loadData]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadData();
+    }, [loadData]),
+  );
 
   React.useEffect(() => {
     loadData();

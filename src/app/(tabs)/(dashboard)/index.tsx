@@ -14,6 +14,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React from "react";
 import {
   Image,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -56,6 +57,7 @@ export default function DashboardScreen() {
   const [globalQueue, setGlobalQueue] = React.useState<DBMatchup[]>([]);
   const [recentMatches, setRecentMatches] = React.useState<Match[]>([]);
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [selectedMatch, setSelectedMatch] = React.useState<Match | null>(null);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -140,7 +142,7 @@ export default function DashboardScreen() {
           <View className="flex-row justify-between items-center py-2">
             <View>
               <Text className="text-3xl font-extrabold tracking-tight text-foreground">
-                Court Hub
+                Q<Text className="text-primary">ourt</Text>
               </Text>
               <Text className="text-sm font-medium text-muted-foreground">
                 Sports Queue & Scoring
@@ -324,9 +326,10 @@ export default function DashboardScreen() {
                 {recentMatches.map((match) => {
                   const aWon = match.winner === match.teamA.join(" & ");
                   return (
-                    <View
+                    <Pressable
                       key={match.id}
-                      className="bg-secondary rounded-3xl p-4 border border-border gap-2"
+                      onPress={() => setSelectedMatch(match)}
+                      className="bg-secondary rounded-3xl p-4 border border-border gap-2 active:opacity-70"
                     >
                       {/* Winner row */}
                       <View className="flex-row items-center justify-between">
@@ -365,7 +368,7 @@ export default function DashboardScreen() {
                           {match.teamB.join(" & ")}
                         </Text>
                       </View>
-                    </View>
+                    </Pressable>
                   );
                 })}
               </View>
@@ -373,6 +376,93 @@ export default function DashboardScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={!!selectedMatch}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSelectedMatch(null)}
+      >
+        <Pressable
+          className="flex-1 justify-end bg-black/50"
+          onPress={() => setSelectedMatch(null)}
+        >
+          <Pressable
+            className="bg-background rounded-t-[32px] p-6 gap-5"
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Handle bar */}
+            <View className="w-10 h-1 rounded-full bg-border self-center -mt-1" />
+
+            {/* Header */}
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xl font-extrabold text-foreground">Match Details</Text>
+              <Pressable
+                onPress={() => setSelectedMatch(null)}
+                className="w-8 h-8 rounded-full bg-secondary items-center justify-center active:opacity-70"
+              >
+                <AppIcon name="xmark" tintColor={theme.foreground} size={14} />
+              </Pressable>
+            </View>
+
+            {selectedMatch && (() => {
+              const aWon = selectedMatch.winner === selectedMatch.teamA.join(" & ");
+              return (
+                <View className="gap-4">
+                  {/* Score card */}
+                  <View className="bg-secondary rounded-3xl p-5 border border-border gap-4">
+                    <View className="flex-row items-center gap-3">
+                      {/* Team A */}
+                      <View className={`flex-1 items-center gap-1.5 p-3 rounded-2xl ${aWon ? "bg-primary/10 border border-primary/30" : "bg-background border border-border"}`}>
+                        {aWon && <AppIcon name="trophy.fill" tintColor="#C1121F" size={14} />}
+                        <Text className="text-xs font-extrabold text-foreground text-center" numberOfLines={2}>
+                          {selectedMatch.teamA.join("\n")}
+                        </Text>
+                      </View>
+
+                      {/* Score */}
+                      <View className="items-center gap-1">
+                        <Text className="text-3xl font-black text-foreground">
+                          {selectedMatch.scoreA} – {selectedMatch.scoreB}
+                        </Text>
+                        <Text className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Final</Text>
+                      </View>
+
+                      {/* Team B */}
+                      <View className={`flex-1 items-center gap-1.5 p-3 rounded-2xl ${!aWon ? "bg-primary/10 border border-primary/30" : "bg-background border border-border"}`}>
+                        {!aWon && <AppIcon name="trophy.fill" tintColor="#C1121F" size={14} />}
+                        <Text className="text-xs font-extrabold text-foreground text-center" numberOfLines={2}>
+                          {selectedMatch.teamB.join("\n")}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Winner & time */}
+                  <View className="flex-row gap-3">
+                    <View className="flex-1 bg-secondary rounded-2xl p-4 border border-border gap-1">
+                      <Text className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Winner</Text>
+                      <View className="flex-row items-center gap-1.5">
+                        <AppIcon name="trophy.fill" tintColor="#C1121F" size={12} />
+                        <Text className="text-sm font-extrabold text-foreground" numberOfLines={1}>{selectedMatch.winner}</Text>
+                      </View>
+                    </View>
+                    <View className="flex-1 bg-secondary rounded-2xl p-4 border border-border gap-1">
+                      <Text className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Played</Text>
+                      <Text className="text-sm font-extrabold text-foreground">
+                        {new Date(selectedMatch.playedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                      </Text>
+                      <Text className="text-[11px] font-medium text-muted-foreground">
+                        {new Date(selectedMatch.playedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })()}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }

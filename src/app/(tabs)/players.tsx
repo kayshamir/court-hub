@@ -10,7 +10,8 @@ import {
   removePlayer,
   togglePlayerStatus,
 } from "@/services/player-service";
-import { removePlayerFromQueue } from "@/services/queue-service";
+import { getCourts } from "@/services/database";
+import { rebuildGlobalQueue, removePlayerFromQueue } from "@/services/queue-service";
 import { Player } from "@/types/player";
 import { useFocusEffect } from "expo-router";
 import React from "react";
@@ -19,6 +20,8 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   RefreshControl,
@@ -30,6 +33,8 @@ import {
 import Swipeable from "react-native-gesture-handler/Swipeable";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppIcon } from "../../components/ui/icon";
+
+const PAGE_SIZE = 5;
 
 export default function PlayersScreen() {
   const safeAreaInsets = useSafeAreaInsets();
@@ -51,6 +56,11 @@ export default function PlayersScreen() {
     null,
   );
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [visibleCount, setVisibleCount] = React.useState(PAGE_SIZE);
+
+  React.useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchQuery]);
 
   const loadPlayers = async () => {
     try {
@@ -153,9 +163,25 @@ export default function PlayersScreen() {
             : p,
         ),
       );
+      if (!goingInactive) {
+        const courts = await getCourts();
+        await rebuildGlobalQueue(courts);
+      }
     } catch (error) {
       console.error("Error toggling player status:", error);
       await loadPlayers();
+    }
+  };
+
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    if (
+      layoutMeasurement.height + contentOffset.y >=
+      contentSize.height - 200
+    ) {
+      setVisibleCount((prev) =>
+        Math.min(prev + PAGE_SIZE, regularPlayers.length),
+      );
     }
   };
 
@@ -164,6 +190,8 @@ export default function PlayersScreen() {
   const regularPlayers = players.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+  const visiblePlayers = regularPlayers.slice(0, visibleCount);
+  const hasMore = visibleCount < regularPlayers.length;
   const activePlayersCount = players.filter(
     (p) => p.status === "active",
   ).length;
@@ -188,6 +216,8 @@ export default function PlayersScreen() {
           contentPlatformStyle,
         ]}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={400}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -370,7 +400,7 @@ export default function PlayersScreen() {
 
                 {/* List of Players */}
                 <View className="gap-2.5">
-                  {regularPlayers.map((player) => (
+                  {visiblePlayers.map((player) => (
                     <Swipeable
                       key={player.id}
                       renderRightActions={() => (
@@ -465,6 +495,11 @@ export default function PlayersScreen() {
                     </Swipeable>
                   ))}
                 </View>
+                {hasMore && (
+                  <View className="py-4 items-center">
+                    <ActivityIndicator color={theme.primary} size="small" />
+                  </View>
+                )}
               </View>
             </>
           )}
