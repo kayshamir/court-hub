@@ -12,10 +12,11 @@ import {
   subscribeToQueue,
   autoAssignMatchupsToEmptyCourts,
   clearAllPools,
+  rebuildGlobalQueue,
 } from "@/services/queue-service";
 import { getGlobalQueue, getActiveMatchups } from "@/services/database";
 import { SportType } from "@/types/court";
-import { PairingMode, Player } from "@/types/player";
+import { PairingMode } from "@/types/player";
 import { Matchup } from "@/types/queue";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -23,6 +24,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   View,
@@ -155,32 +157,29 @@ export default function QueueScreen() {
   const theme = useTheme();
 
   const [courts, setCourts] = React.useState<DBCourt[]>([]);
-  const [activePlayers, setActivePlayers] = React.useState<Player[]>([]);
   const [pairingModeState, setPairingModeState] =
     React.useState<PairingMode>(getPairingMode());
   const [globalQueue, setGlobalQueue] = React.useState<Matchup[]>([]);
   const [activeMatchups, setActiveMatchups] = React.useState<Map<number, Matchup>>(new Map());
   const [isEndSessionModalVisible, setIsEndSessionModalVisible] =
     React.useState(false);
-  const [, setForceUpdate] = React.useState(0);
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
-  const loadData = async () => {
+  const loadData = React.useCallback(async () => {
     try {
       const dbCourts = await getCourts();
       setCourts(dbCourts);
-      const players = await fetchActivePlayers();
-      setActivePlayers(players);
 
       const dbGlobalQueue = await getGlobalQueue();
       const dbActiveMatchups = await getActiveMatchups();
-      
+
       const parsedQueue = dbGlobalQueue.map(m => ({
         id: m.id.toString(),
         teamA: JSON.parse(m.team_a),
         teamB: JSON.parse(m.team_b)
       }));
       setGlobalQueue(parsedQueue);
-      
+
       const parsedActive = new Map<number, Matchup>();
       dbActiveMatchups.forEach(m => {
         if (m.courtId) {
@@ -193,11 +192,26 @@ export default function QueueScreen() {
       });
       setActiveMatchups(parsedActive);
 
-      await autoAssignMatchupsToEmptyCourts(dbCourts.map(c => c.id));
+      // Auto-rebuild queue when it's empty and no games are in progress
+      if (parsedQueue.length === 0 && dbActiveMatchups.length === 0) {
+        const activePlayers = await fetchActivePlayers();
+        if (activePlayers.length >= 2) {
+          await rebuildGlobalQueue(dbCourts);
+          return; // notifyQueueChanged triggers another loadData which will auto-assign
+        }
+      }
+
+      await autoAssignMatchupsToEmptyCourts(dbCourts);
     } catch (error) {
       console.error("Error loading queue data:", error);
     }
-  };
+  }, []);
+
+  const handleRefresh = React.useCallback(async () => {
+    setIsRefreshing(true);
+    await loadData();
+    setIsRefreshing(false);
+  }, [loadData]);
 
   React.useEffect(() => {
     loadData();
@@ -249,6 +263,14 @@ export default function QueueScreen() {
           contentPlatformStyle,
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
       >
         <View className="px-5 max-w-[800px] w-full self-center">
           {/* Header */}
@@ -318,7 +340,11 @@ export default function QueueScreen() {
                 return (
                   <Pressable
                     key={mode.id}
-                    onPress={() => setPairingMode(mode.id as PairingMode)}
+                    onPress={async () => {
+                      const newMode = mode.id as PairingMode;
+                      setPairingMode(newMode);
+                      await rebuildGlobalQueue(courts);
+                    }}
                     className={`flex-1 py-4 px-2 rounded-3xl border items-center justify-center transition-all ${
                       isActive
                         ? "bg-primary/10 border-primary/50"
@@ -359,8 +385,39 @@ export default function QueueScreen() {
 
         {/* Vertical Court Cards list */}
         <View className="px-5">
-          {/* Global Queue UI */}
-          <View className="mb-6 bg-secondary rounded-[32px] p-5 border border-border">
+          {courts.length === 0 ? (
+            <View className="py-12 items-center justify-center border border-dashed border-border rounded-3xl bg-secondary/50">
+              <Text className="text-muted-foreground font-medium">
+                No courts available.
+              </Text>
+            </View>
+          ) : (
+            courts.map((court) => {
+              const currentMatch = activeMatchups.get(court.id);
+              return (
+                <CourtCard
+                  key={court.id}
+                  court={court}
+                  currentMatch={currentMatch}
+                  onPressScore={() => {
+                    router.push({
+                      pathname: "/score",
+                      params: {
+                        courtId: court.id.toString(),
+                        courtName: court.name,
+                        sport: court.sport,
+                        matchType: court.matchType,
+                        pairingMode: pairingModeState,
+                      },
+                    });
+                  }}
+                />
+              );
+            })
+          )}
+
+          {/* Global Queue — shown below all courts */}
+          <View className="mt-2 mb-6 bg-secondary rounded-[32px] p-5 border border-border">
             <Text className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest mb-4">
               Match Queue
             </Text>
@@ -410,37 +467,6 @@ export default function QueueScreen() {
               </View>
             )}
           </View>
-
-          {courts.length === 0 ? (
-            <View className="py-12 items-center justify-center border border-dashed border-border rounded-3xl bg-secondary/50">
-              <Text className="text-muted-foreground font-medium">
-                No courts available.
-              </Text>
-            </View>
-          ) : (
-            courts.map((court) => {
-              const currentMatch = activeMatchups.get(court.id);
-              return (
-                <CourtCard
-                  key={court.id}
-                  court={court}
-                  currentMatch={currentMatch}
-                  onPressScore={() => {
-                    router.push({
-                      pathname: "/score",
-                      params: {
-                        courtId: court.id.toString(),
-                        courtName: court.name,
-                        sport: court.sport,
-                        matchType: court.matchType,
-                        pairingMode: pairingModeState,
-                      },
-                    });
-                  }}
-                />
-              );
-            })
-          )}
         </View>
       </ScrollView>
 

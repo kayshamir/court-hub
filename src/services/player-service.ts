@@ -53,7 +53,7 @@ export async function fetchRankedPlayersList(): Promise<Player[]> {
   return mappedPlayers.map((p, idx) => ({
     ...p,
     rank: idx + 1 < 10 ? `0${idx + 1}` : `${idx + 1}`,
-    isTopPerformer: idx === 0,
+    isTopPerformer: idx === 0 && p.wins > 0,
   }));
 }
 

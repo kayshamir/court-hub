@@ -10,12 +10,9 @@ import {
   removePlayer,
   togglePlayerStatus,
 } from "@/services/player-service";
-import {
-  getPairingMode,
-  setPairingMode,
-  subscribeToPairingMode,
-} from "@/services/queue-service";
-import { PairingMode, Player } from "@/types/player";
+import { removePlayerFromQueue } from "@/services/queue-service";
+import { Player } from "@/types/player";
+import { useFocusEffect } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -24,6 +21,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   TextInput as RNTextInput,
   ScrollView,
   Text,
@@ -52,8 +50,7 @@ export default function PlayersScreen() {
   const [playerToRemove, setPlayerToRemove] = React.useState<Player | null>(
     null,
   );
-  const [pairingModeState, setPairingModeState] =
-    React.useState<PairingMode>(getPairingMode());
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   const loadPlayers = async () => {
     try {
@@ -67,15 +64,17 @@ export default function PlayersScreen() {
     }
   };
 
-  React.useEffect(() => {
-    loadPlayers();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadPlayers();
+    }, []),
+  );
 
-  React.useEffect(() => {
-    return subscribeToPairingMode((newMode) => {
-      setPairingModeState(newMode);
-    });
-  }, []);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadPlayers();
+    setIsRefreshing(false);
+  };
 
   const handleAddPlayer = async () => {
     if (!newPlayerName.trim()) return;
@@ -106,6 +105,7 @@ export default function PlayersScreen() {
 
     try {
       setIsLoading(true);
+      await removePlayerFromQueue(playerToRemove.id);
       await removePlayer(playerToRemove.id);
       setPlayerToRemove(null);
       await loadPlayers();
@@ -129,6 +129,7 @@ export default function PlayersScreen() {
 
     try {
       setIsLoading(true);
+      await removePlayerFromQueue(playerToEdit.id);
       await changePlayerSkillLevel(playerToEdit.id, editPlayerLevel);
       setPlayerToEdit(null);
       await loadPlayers();
@@ -139,9 +140,12 @@ export default function PlayersScreen() {
   };
 
   const handleToggleStatus = async (player: Player) => {
+    const goingInactive = player.status === "active";
     try {
+      if (goingInactive) {
+        await removePlayerFromQueue(player.id);
+      }
       await togglePlayerStatus(player.id, player.status);
-      // Optimistically update the UI to feel snappy
       setPlayers((prev) =>
         prev.map((p) =>
           p.id === player.id
@@ -151,12 +155,12 @@ export default function PlayersScreen() {
       );
     } catch (error) {
       console.error("Error toggling player status:", error);
-      // Revert on error by reloading
       await loadPlayers();
     }
   };
 
-  const topPerformer = players.length > 0 ? players[0] : null;
+  const topPerformer =
+    players.length > 0 && players[0].isTopPerformer ? players[0] : null;
   const regularPlayers = players.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
@@ -184,6 +188,14 @@ export default function PlayersScreen() {
           contentPlatformStyle,
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
       >
         <View className="px-5 max-w-[800px] w-full self-center gap-6">
           {/* Header */}
@@ -227,8 +239,6 @@ export default function PlayersScreen() {
             />
           </View>
 
-
-
           {isLoading ? (
             <View className="py-12 items-center justify-center">
               <ActivityIndicator color={theme.primary} />
@@ -251,68 +261,89 @@ export default function PlayersScreen() {
             </View>
           ) : (
             <>
-              {topPerformer && (
-                <View className="bg-secondary rounded-3xl p-5 border border-border flex-row justify-between items-center relative overflow-hidden">
-                  <View className="z-10 flex-1">
-                    <View className="flex-row items-center gap-2 mb-2">
-                      <View className="bg-primary px-2.5 py-2 rounded-full flex-row items-center gap-1">
-                        <AppIcon name="star.fill" tintColor="#fff" size={10} />
-                        <Text className="text-white text-[9px] font-black uppercase tracking-widest">
-                          Top Performer
-                        </Text>
-                      </View>
-                    </View>
-                    <Text className="text-2xl font-black text-foreground uppercase tracking-tight">
-                      {topPerformer.name}
-                    </Text>
-
-                    <View className="mt-3">
-                      <Text className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                        Recent Form Streak
+              <View className="bg-secondary rounded-3xl p-5 border border-border flex-row justify-between items-center relative overflow-hidden">
+                <View className="z-10 flex-1">
+                  <View className="flex-row items-center gap-2 mb-2">
+                    <View className="bg-primary px-2.5 py-2 rounded-full flex-row items-center gap-1">
+                      <AppIcon name="star.fill" tintColor="#fff" size={10} />
+                      <Text className="text-white text-[9px] font-black uppercase tracking-widest">
+                        Top Performer
                       </Text>
-                      <View className="flex-row gap-1.5">
-                        {topPerformer.form.map((res, index) => (
-                          <View
-                            key={index}
-                            className={`w-6 h-6 items-center justify-center rounded-full ${
-                              res === "W"
-                                ? "bg-primary"
-                                : "bg-black/10 dark:bg-white/10"
-                            }`}
-                          >
-                            <Text
-                              className={`text-[10px] font-black ${
+                    </View>
+                  </View>
+
+                  {topPerformer ? (
+                    <>
+                      <Text className="text-2xl font-black text-foreground uppercase tracking-tight">
+                        {topPerformer.name}
+                      </Text>
+                      <View className="mt-3">
+                        <Text className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                          Recent Form Streak
+                        </Text>
+                        <View className="flex-row gap-1.5">
+                          {topPerformer.form.map((res, index) => (
+                            <View
+                              key={index}
+                              className={`w-6 h-6 items-center justify-center rounded-full ${
                                 res === "W"
-                                  ? "text-white"
-                                  : "text-muted-foreground"
+                                  ? "bg-primary"
+                                  : "bg-black/10 dark:bg-white/10"
                               }`}
                             >
-                              {res}
-                            </Text>
-                          </View>
-                        ))}
+                              <Text
+                                className={`text-[10px] font-black ${
+                                  res === "W"
+                                    ? "text-white"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {res}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
                       </View>
-                    </View>
-                  </View>
-
-                  <View className="absolute right-0 bottom-0 opacity-5 rotate-12 z-0">
-                    <AppIcon
-                      name="crown.fill"
-                      tintColor={theme.foreground}
-                      size={160}
-                    />
-                  </View>
+                    </>
+                  ) : (
+                    <Text className="text-base font-semibold text-muted-foreground">
+                      No top performer yet
+                    </Text>
+                  )}
                 </View>
-              )}
+
+                <View className="absolute right-0 bottom-0 opacity-5 rotate-12 z-0">
+                  <AppIcon
+                    name="crown.fill"
+                    tintColor={theme.foreground}
+                    size={160}
+                  />
+                </View>
+              </View>
+
+              {/* Tap hint */}
+              <View className="bg-primary/5 border border-primary/20 rounded-2xl px-4 py-3 flex-row items-center gap-2.5">
+                <AppIcon
+                  name="hand.tap.fill"
+                  tintColor={theme.primary}
+                  size={22}
+                />
+                <Text className="text-xs font-medium text-muted-foreground flex-1">
+                  Tap a player to mark them{" "}
+                  <Text className="font-extrabold text-primary">active</Text> —
+                  active players are automatically queued into the next
+                  available court match.
+                </Text>
+              </View>
 
               {/* Player Statistics Board */}
               <View className="gap-3">
                 <View className="flex-row justify-between items-center px-1">
                   <View>
-                    <Text className="text-lg font-extrabold text-foreground">
+                    <Text className="text-xl font-extrabold text-foreground">
                       Leaderboard
                     </Text>
-                    <Text className="text-xs font-semibold text-muted-foreground">
+                    <Text className="text-sm font-semibold text-muted-foreground">
                       Active Season
                     </Text>
                   </View>

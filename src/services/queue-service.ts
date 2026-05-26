@@ -1,6 +1,6 @@
 import { Player, PairingMode } from "@/types/player";
 import { Matchup } from "@/types/queue";
-import { addMatchups, clearWaitingQueue, getGlobalQueue, getActiveMatchups, updateMatchupStatus, clearAllMatchups } from "./database";
+import { addMatchups, clearWaitingQueue, getGlobalQueue, getActiveMatchups, updateMatchupStatus, clearAllMatchups, deleteMatchupById } from "./database";
 import { fetchActivePlayers } from "./player-service";
 
 const SKILL_VALUE = { Beginner: 1, Intermediate: 2, Advanced: 3 };
@@ -94,68 +94,124 @@ export function buildBalancedPool(
   return matchups;
 }
 
-export async function rebuildGlobalQueue(matchType: string = "doubles") {
+export async function rebuildGlobalQueue(courts: { id: number; matchType: string }[]) {
+  if (courts.length === 0) return;
+
   const activePlayers = await fetchActivePlayers();
-  
+
   const playingMatchupsDB = await getActiveMatchups();
   const playingPlayerIds = new Set<number>();
-  
   for (const m of playingMatchupsDB) {
     try {
       const teamA = JSON.parse(m.team_a) as Player[];
       const teamB = JSON.parse(m.team_b) as Player[];
-      teamA.forEach(p => playingPlayerIds.add(p.id));
-      teamB.forEach(p => playingPlayerIds.add(p.id));
+      teamA.forEach((p) => playingPlayerIds.add(p.id));
+      teamB.forEach((p) => playingPlayerIds.add(p.id));
     } catch {}
   }
-  
-  const waitingPlayers = activePlayers.filter(p => !playingPlayerIds.has(p.id));
-  const newMatchups = buildBalancedPool(waitingPlayers, matchType, currentPairingMode);
-  
+
+  let waitingPlayers = activePlayers.filter((p) => !playingPlayerIds.has(p.id));
+
+  // Process doubles first (consumes 4 players) then singles (consumes 2)
+  const matchTypes = [...new Set(courts.map((c) => c.matchType))].sort((a, b) => {
+    const aD = a.toLowerCase() === "doubles";
+    const bD = b.toLowerCase() === "doubles";
+    return aD === bD ? 0 : aD ? -1 : 1;
+  });
+
+  const allMatchupData: {
+    teamA: string;
+    teamB: string;
+    orderIndex: number;
+    status: "waiting";
+    courtId: null;
+  }[] = [];
+  let orderIndex = 0;
+
+  for (const matchType of matchTypes) {
+    const playersPerMatch = matchType.toLowerCase() === "doubles" ? 4 : 2;
+    if (waitingPlayers.length < playersPerMatch) continue;
+
+    const newMatchups = buildBalancedPool(waitingPlayers, matchType, currentPairingMode);
+    for (const m of newMatchups) {
+      allMatchupData.push({
+        teamA: JSON.stringify(m.teamA),
+        teamB: JSON.stringify(m.teamB),
+        orderIndex: orderIndex++,
+        status: "waiting",
+        courtId: null,
+      });
+    }
+
+    // Remove consumed players so they aren't reused in the next type's pool
+    const usedIds = new Set<number>();
+    newMatchups.forEach((m) => {
+      m.teamA.forEach((p) => usedIds.add(p.id));
+      m.teamB.forEach((p) => usedIds.add(p.id));
+    });
+    waitingPlayers = waitingPlayers.filter((p) => !usedIds.has(p.id));
+  }
+
   await clearWaitingQueue();
-  
-  await addMatchups(newMatchups.map((m, index) => ({
-    teamA: JSON.stringify(m.teamA),
-    teamB: JSON.stringify(m.teamB),
-    orderIndex: index,
-    status: "waiting",
-    courtId: null
-  })));
+  if (allMatchupData.length > 0) {
+    await addMatchups(allMatchupData);
+  }
 
   notifyQueueChanged();
 }
 
-export async function rotateCourt(courtId: number) {
+export async function rotateCourt(courtId: number, matchType: string) {
   const playingMatchups = await getActiveMatchups();
-  const currentMatch = playingMatchups.find(m => m.courtId === courtId);
-  
+  const currentMatch = playingMatchups.find((m) => m.courtId === courtId);
+
   if (currentMatch) {
     await updateMatchupStatus(currentMatch.id, "finished", null);
   }
-  
+
+  const expectedTeamSize = matchType.toLowerCase() === "doubles" ? 2 : 1;
   const queue = await getGlobalQueue();
-  if (queue.length > 0) {
-    const nextMatch = queue[0];
+  const nextMatch = queue.find((m) => {
+    try {
+      return (JSON.parse(m.team_a) as Player[]).length === expectedTeamSize;
+    } catch {
+      return false;
+    }
+  });
+
+  if (nextMatch) {
     await updateMatchupStatus(nextMatch.id, "playing", courtId);
   }
-  
+
   notifyQueueChanged();
 }
 
-export async function autoAssignMatchupsToEmptyCourts(courtIds: number[]) {
+export async function autoAssignMatchupsToEmptyCourts(
+  courts: { id: number; matchType: string }[]
+) {
   const playingMatchups = await getActiveMatchups();
-  const occupiedCourtIds = new Set(playingMatchups.map(m => m.courtId));
-  const emptyCourts = courtIds.filter(id => !occupiedCourtIds.has(id));
-  
+  const occupiedCourtIds = new Set(playingMatchups.map((m) => m.courtId));
+  const emptyCourts = courts.filter((c) => !occupiedCourtIds.has(c.id));
+
   if (emptyCourts.length === 0) return;
 
   const queue = await getGlobalQueue();
+  const assignedMatchupIds = new Set<number>();
   let assignedCount = 0;
 
-  for (const emptyCourtId of emptyCourts) {
-    if (assignedCount < queue.length) {
-      const nextMatch = queue[assignedCount];
-      await updateMatchupStatus(nextMatch.id, "playing", emptyCourtId);
+  for (const court of emptyCourts) {
+    const expectedTeamSize = court.matchType.toLowerCase() === "doubles" ? 2 : 1;
+    const matchup = queue.find((m) => {
+      if (assignedMatchupIds.has(m.id)) return false;
+      try {
+        return (JSON.parse(m.team_a) as Player[]).length === expectedTeamSize;
+      } catch {
+        return false;
+      }
+    });
+
+    if (matchup) {
+      await updateMatchupStatus(matchup.id, "playing", court.id);
+      assignedMatchupIds.add(matchup.id);
       assignedCount++;
     }
   }
@@ -163,6 +219,23 @@ export async function autoAssignMatchupsToEmptyCourts(courtIds: number[]) {
   if (assignedCount > 0) {
     notifyQueueChanged();
   }
+}
+
+export async function removePlayerFromQueue(playerId: number) {
+  const waiting = await getGlobalQueue();
+  const playing = await getActiveMatchups();
+
+  for (const m of [...waiting, ...playing]) {
+    try {
+      const teamA = JSON.parse(m.team_a) as Player[];
+      const teamB = JSON.parse(m.team_b) as Player[];
+      if ([...teamA, ...teamB].some((p) => p.id === playerId)) {
+        await deleteMatchupById(m.id);
+      }
+    } catch {}
+  }
+
+  notifyQueueChanged();
 }
 
 export async function clearAllPools() {

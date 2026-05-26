@@ -1,6 +1,6 @@
 import * as schema from "@/db/schema";
 import { courts, matches, players, DBPlayer, matchups, DBMatchup } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/expo-sqlite";
 import { SkillLevel } from "@/types/player";
 import * as SQLite from "expo-sqlite";
@@ -211,4 +211,17 @@ export async function updateMatchupStatus(
     .update(matchups)
     .set({ status, courtId })
     .where(eq(matchups.id, id));
+}
+
+export async function deleteMatchupById(id: number) {
+  await db.delete(matchups).where(eq(matchups.id, id));
+}
+
+export async function getActiveMatchupForCourt(courtId: number) {
+  const [result] = await db
+    .select()
+    .from(matchups)
+    .where(and(eq(matchups.status, "playing"), eq(matchups.courtId, courtId)))
+    .limit(1);
+  return result ?? null;
 }
