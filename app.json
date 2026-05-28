@@ -22,8 +22,7 @@
       "package": "com.phpastil.qourt",
       "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#C1121F"
+        "foregroundImage": "./assets/images/icon.png"
       }
     },
     "web": {
@@ -35,10 +34,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#C1121F",
           "android": {
             "image": "./assets/images/splash.png",
-            "imageWidth": 76
+            "imageWidth": 85
           }
         }
       ],

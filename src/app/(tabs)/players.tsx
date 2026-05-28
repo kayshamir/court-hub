@@ -522,7 +522,7 @@ export default function PlayersScreen() {
         onRequestClose={() => setIsAddModalVisible(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior="padding"
           className="flex-1"
         >
           <Pressable
@@ -530,9 +530,14 @@ export default function PlayersScreen() {
             onPress={() => Keyboard.dismiss()}
           >
             <Pressable
-              className="bg-background rounded-t-[32px] p-6 gap-6"
+              className="bg-background rounded-t-[32px] pt-6 px-6 pb-2 gap-6"
               onPress={(e) => e.stopPropagation()}
             >
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ gap: 24, paddingBottom: 24 }}
+              >
               <View className="flex-row justify-between items-center">
                 <Text className="text-xl font-extrabold text-foreground">
                   Add New Player
@@ -598,6 +603,7 @@ export default function PlayersScreen() {
               </View>
 
               <Button onPress={handleAddPlayer} label="Create Profile" />
+              </ScrollView>
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
