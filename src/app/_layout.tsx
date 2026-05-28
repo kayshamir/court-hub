@@ -1,3 +1,4 @@
+import "@/setup";
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
 import { db, expoDb } from "@/services/database";
 import {
