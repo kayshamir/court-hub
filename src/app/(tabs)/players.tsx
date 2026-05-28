@@ -514,7 +514,7 @@ export default function PlayersScreen() {
         onRequestClose={() => setIsAddModalVisible(false)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           className="flex-1"
         >
           <Pressable

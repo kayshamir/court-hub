@@ -164,7 +164,7 @@ export function CourtPreview({ sportType }: CourtPreviewProps) {
             Live Preview
           </Text>
         </View>
-        <Text className="text-[11px] font-bold text-muted-foreground font-mono">
+        <Text className="text-[11px] font-bold text-muted-foreground">
           {config.dimensions}
         </Text>
       </View>

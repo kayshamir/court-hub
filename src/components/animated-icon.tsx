@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { Dimensions, Platform, StyleSheet, View } from 'react-native';
 import Animated, { Easing, Keyframe } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -103,10 +103,13 @@ const styles = StyleSheet.create({
   },
   background: {
     borderRadius: 40,
-    experimental_backgroundImage: `linear-gradient(180deg, #EE4451, #C1121F)`,
     width: 128,
     height: 128,
     position: 'absolute',
+    backgroundColor: '#C1121F',
+    ...Platform.select({
+      ios: { experimental_backgroundImage: 'linear-gradient(180deg, #EE4451, #C1121F)' } as any,
+    }),
   },
   backgroundSolidColor: {
     position: 'absolute',
