@@ -1,1 +1,0 @@
-ALTER TABLE `players` ADD `level` text DEFAULT 'Beginner' NOT NULL;

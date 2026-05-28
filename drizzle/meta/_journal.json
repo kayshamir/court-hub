@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1779691793372,
-      "tag": "0000_gigantic_old_lace",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1779692844322,
-      "tag": "0001_eminent_daimon_hellstrom",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1779697877615,
-      "tag": "0002_magenta_cable",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1779764041673,
-      "tag": "0003_lazy_bloodstorm",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1779772892900,
-      "tag": "0004_chunky_cerise",
+      "when": 1779947047950,
+      "tag": "0000_purple_night_nurse",
       "breakpoints": true
     }
   ]

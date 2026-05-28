@@ -1,6 +1,6 @@
 import { Player, PairingMode } from "@/types/player";
 import { Matchup } from "@/types/queue";
-import { addMatchups, clearWaitingQueue, getGlobalQueue, getActiveMatchups, updateMatchupStatus, clearAllMatchups, deleteMatchupById } from "./database";
+import { addMatchups, clearWaitingQueue, getGlobalQueue, getActiveMatchups, updateMatchupStatus, clearAllMatchups, deleteMatchupsByIds, finishMatchupsByIds } from "./database";
 import { fetchActivePlayers } from "./player-service";
 
 const SKILL_VALUE = { Beginner: 1, Intermediate: 2, Advanced: 3 };
@@ -244,10 +244,22 @@ export async function manualAssignCourt(
   teamB: Player[],
 ) {
   const playing = await getActiveMatchups();
-  const existing = playing.find((m) => m.courtId === courtId);
-  if (existing) {
-    await updateMatchupStatus(existing.id, "finished", null);
-  }
+  const selectedIds = new Set([...teamA, ...teamB].map((p) => p.id));
+
+  const toFinish = playing
+    .filter((m) => {
+      if (m.courtId === courtId) return true;
+      try {
+        const mA = JSON.parse(m.team_a) as Player[];
+        const mB = JSON.parse(m.team_b) as Player[];
+        return [...mA, ...mB].some((p) => selectedIds.has(p.id));
+      } catch {
+        return false;
+      }
+    })
+    .map((m) => m.id);
+
+  await finishMatchupsByIds(toFinish);
   await addMatchups([{
     teamA: JSON.stringify(teamA),
     teamB: JSON.stringify(teamB),
@@ -262,16 +274,18 @@ export async function removePlayerFromQueue(playerId: number) {
   const waiting = await getGlobalQueue();
   const playing = await getActiveMatchups();
 
+  const idsToDelete: number[] = [];
   for (const m of [...waiting, ...playing]) {
     try {
       const teamA = JSON.parse(m.team_a) as Player[];
       const teamB = JSON.parse(m.team_b) as Player[];
       if ([...teamA, ...teamB].some((p) => p.id === playerId)) {
-        await deleteMatchupById(m.id);
+        idsToDelete.push(m.id);
       }
     } catch {}
   }
 
+  await deleteMatchupsByIds(idsToDelete);
   notifyQueueChanged();
 }
 

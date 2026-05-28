@@ -3,7 +3,7 @@ import { AppIcon } from "@/components/ui/icon";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { DBCourt } from "@/db/schema";
 import { useTheme } from "@/hooks/use-theme";
-import { getCourts, clearAllMatchups } from "@/services/database";
+import { getCourts, clearAllMatchups, subscribeToCourtChanged } from "@/services/database";
 import { endSession, fetchActivePlayers } from "@/services/player-service";
 import {
   getPairingMode,
@@ -257,12 +257,17 @@ export default function QueueScreen() {
       loadData();
     });
 
+    const unsubCourt = subscribeToCourtChanged(() => {
+      getCourts().then(setCourts);
+    });
+
     const unsubPairing = subscribeToPairingMode((newMode) => {
       setPairingModeState(newMode);
     });
 
     return () => {
       unsubQueue();
+      unsubCourt();
       unsubPairing();
     };
   }, []);

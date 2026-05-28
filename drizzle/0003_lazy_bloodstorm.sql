@@ -1,1 +1,0 @@
-ALTER TABLE `players` ADD `status` text DEFAULT 'inactive' NOT NULL;

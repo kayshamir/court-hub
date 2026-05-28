@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { TextInput } from "@/components/ui/text-input";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
+import { getCourts } from "@/services/database";
 import {
   changePlayerSkillLevel,
   fetchRankedPlayersList,
@@ -10,8 +11,10 @@ import {
   removePlayer,
   togglePlayerStatus,
 } from "@/services/player-service";
-import { getCourts } from "@/services/database";
-import { rebuildGlobalQueue, removePlayerFromQueue } from "@/services/queue-service";
+import {
+  rebuildGlobalQueue,
+  removePlayerFromQueue,
+} from "@/services/queue-service";
 import { Player } from "@/types/player";
 import { useFocusEffect } from "expo-router";
 import React from "react";
@@ -41,6 +44,7 @@ export default function PlayersScreen() {
   const theme = useTheme();
 
   const [isLoading, setIsLoading] = React.useState(true);
+  const isTogglingRef = React.useRef(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isAddModalVisible, setIsAddModalVisible] = React.useState(false);
   const [newPlayerName, setNewPlayerName] = React.useState("");
@@ -150,6 +154,8 @@ export default function PlayersScreen() {
   };
 
   const handleToggleStatus = async (player: Player) => {
+    if (isTogglingRef.current) return;
+    isTogglingRef.current = true;
     const goingInactive = player.status === "active";
     try {
       if (goingInactive) {
@@ -170,6 +176,8 @@ export default function PlayersScreen() {
     } catch (error) {
       console.error("Error toggling player status:", error);
       await loadPlayers();
+    } finally {
+      isTogglingRef.current = false;
     }
   };
 
@@ -546,6 +554,7 @@ export default function PlayersScreen() {
                   label="Player Name"
                   placeholder="Enter full name"
                   value={newPlayerName}
+                  autoCapitalize="words"
                   onChangeText={setNewPlayerName}
                 />
 

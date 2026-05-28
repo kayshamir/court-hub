@@ -5,18 +5,11 @@ import { AppIcon } from "@/components/ui/icon";
 import { TextInput } from "@/components/ui/text-input";
 import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
-import { getCourts, addCourt } from "@/services/database";
+import { addCourt, getCourts } from "@/services/database";
 import { MatchType, SPORT_CONFIGS, SportType } from "@/types/court";
-import { Stack, useRouter, useFocusEffect } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 import React from "react";
-import {
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
-} from "react-native";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const SCREEN_OPTIONS = {
@@ -37,7 +30,7 @@ export default function CreateCourtScreen() {
   useFocusEffect(
     React.useCallback(() => {
       getCourts().then((courts) => setCourtCount(courts.length));
-    }, [])
+    }, []),
   );
 
   const sportConfig = SPORT_CONFIGS[sportType];
@@ -55,7 +48,7 @@ export default function CreateCourtScreen() {
     try {
       setSaving(true);
       await addCourt(courtName.trim(), sportType, matchType);
-      router.replace("/(tabs)/queue");
+      router.back();
     } catch {
       Alert.alert("Error", "Could not save the court. Please try again.");
     } finally {
@@ -111,6 +104,7 @@ export default function CreateCourtScreen() {
                   label="Court Name"
                   placeholder="Enter full name"
                   value={courtName}
+                  autoCapitalize="words"
                   onChangeText={setCourtName}
                 />
               </View>

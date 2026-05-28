@@ -1,8 +1,8 @@
 import { CourtCanvas } from "@/components/court-preview";
 import { BottomTabInset, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/use-theme";
-import { saveMatchResult } from "@/services/match-service";
 import { getActiveMatchupForCourt } from "@/services/database";
+import { saveMatchResult } from "@/services/match-service";
 import { rotateCourt } from "@/services/queue-service";
 import { SportType } from "@/types/court";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -100,7 +100,9 @@ export default function ScoreScreen() {
   const [initialTeamB, setInitialTeamB] = React.useState<string[]>([]);
   const [teamAPlayers, setTeamAPlayers] = React.useState<string[]>([]);
   const [teamBPlayers, setTeamBPlayers] = React.useState<string[]>([]);
-  const [matchMode, setMatchMode] = React.useState<"singles" | "doubles">("doubles");
+  const [matchMode, setMatchMode] = React.useState<"singles" | "doubles">(
+    "doubles",
+  );
 
   // Loading state — prevents false "empty court" opacity flash on initial render
   const [isMatchLoading, setIsMatchLoading] = React.useState(true);
@@ -185,7 +187,13 @@ export default function ScoreScreen() {
 
     setHistory((prev) => [
       ...prev,
-      { scoreA, scoreB, teamAPlayers: [...teamAPlayers], teamBPlayers: [...teamBPlayers], servingTeam },
+      {
+        scoreA,
+        scoreB,
+        teamAPlayers: [...teamAPlayers],
+        teamBPlayers: [...teamBPlayers],
+        servingTeam,
+      },
     ]);
 
     const newA = team === "A" ? scoreA + 1 : scoreA;
@@ -216,7 +224,11 @@ export default function ScoreScreen() {
       ...prev.slice(0, 4),
     ]);
 
-    if (matchMode === "doubles" && teamAPlayers.length > 1 && teamBPlayers.length > 1) {
+    if (
+      matchMode === "doubles" &&
+      teamAPlayers.length > 1 &&
+      teamBPlayers.length > 1
+    ) {
       if (servingTeam === team) {
         if (team === "A") setTeamAPlayers((prev) => [prev[1], prev[0]]);
         else setTeamBPlayers((prev) => [prev[1], prev[0]]);
@@ -237,7 +249,13 @@ export default function ScoreScreen() {
     if (team === "A" && scoreA > 0) {
       setHistory((prev) => [
         ...prev,
-        { scoreA, scoreB, teamAPlayers: [...teamAPlayers], teamBPlayers: [...teamBPlayers], servingTeam },
+        {
+          scoreA,
+          scoreB,
+          teamAPlayers: [...teamAPlayers],
+          teamBPlayers: [...teamBPlayers],
+          servingTeam,
+        },
       ]);
       const newA = scoreA - 1;
       setScoreA(newA);
@@ -248,7 +266,13 @@ export default function ScoreScreen() {
     if (team === "B" && scoreB > 0) {
       setHistory((prev) => [
         ...prev,
-        { scoreA, scoreB, teamAPlayers: [...teamAPlayers], teamBPlayers: [...teamBPlayers], servingTeam },
+        {
+          scoreA,
+          scoreB,
+          teamAPlayers: [...teamAPlayers],
+          teamBPlayers: [...teamBPlayers],
+          servingTeam,
+        },
       ]);
       const newB = scoreB - 1;
       setScoreB(newB);
@@ -336,7 +360,10 @@ export default function ScoreScreen() {
     <View className="flex-1 bg-background">
       <ScrollView
         contentContainerStyle={[
-          { paddingTop: safeAreaInsets.top + Spacing.two, paddingHorizontal: 20 },
+          {
+            paddingTop: safeAreaInsets.top + Spacing.two,
+            paddingHorizontal: 20,
+          },
           contentPlatformStyle,
         ]}
         showsVerticalScrollIndicator={false}
@@ -406,11 +433,15 @@ export default function ScoreScreen() {
               <View className="flex-row gap-4 items-center">
                 <View className="flex-row items-center gap-1.5">
                   <View className="w-2.5 h-2.5 rounded-full bg-[#C1121F]" />
-                  <Text className="text-[10px] font-bold text-muted-foreground">TEAM A (RED)</Text>
+                  <Text className="text-[10px] font-bold text-muted-foreground">
+                    TEAM A (RED)
+                  </Text>
                 </View>
                 <View className="flex-row items-center gap-1.5">
                   <View className="w-2.5 h-2.5 rounded-full bg-[#1E3A8A]" />
-                  <Text className="text-[10px] font-bold text-muted-foreground">TEAM B (BLUE)</Text>
+                  <Text className="text-[10px] font-bold text-muted-foreground">
+                    TEAM B (BLUE)
+                  </Text>
                 </View>
               </View>
             </View>
@@ -425,16 +456,31 @@ export default function ScoreScreen() {
                   <View className="items-center justify-center relative w-12 h-12">
                     <View
                       className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${leftColor}`}
-                      style={leftHalfPlayers[1] === currentServerName ? { transform: [{ scale: 1.1 }], borderColor: "#facc15" } : undefined}
+                      style={
+                        leftHalfPlayers[1] === currentServerName
+                          ? {
+                              transform: [{ scale: 1.1 }],
+                              borderColor: "#facc15",
+                            }
+                          : undefined
+                      }
                     >
                       <Text className="text-white text-xs font-black leading-none">
-                        {getPlayerNumber(leftHalfPlayers[1], leftInitialTeam, leftPrefix)}
+                        {getPlayerNumber(
+                          leftHalfPlayers[1],
+                          leftInitialTeam,
+                          leftPrefix,
+                        )}
                       </Text>
                       {leftHalfPlayers[1] === currentServerName && (
-                        <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">SVC</Text>
+                        <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">
+                          SVC
+                        </Text>
                       )}
                       {leftHalfPlayers[1] === currentReceiverName && (
-                        <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">RCV</Text>
+                        <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">
+                          RCV
+                        </Text>
                       )}
                     </View>
                     {leftHalfPlayers[1] === currentServerName && (
@@ -448,16 +494,31 @@ export default function ScoreScreen() {
                 <View className="items-center justify-center relative w-12 h-12">
                   <View
                     className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${leftColor}`}
-                    style={leftHalfPlayers[0] === currentServerName ? { transform: [{ scale: 1.1 }], borderColor: "#facc15" } : undefined}
+                    style={
+                      leftHalfPlayers[0] === currentServerName
+                        ? {
+                            transform: [{ scale: 1.1 }],
+                            borderColor: "#facc15",
+                          }
+                        : undefined
+                    }
                   >
                     <Text className="text-white text-xs font-black leading-none">
-                      {getPlayerNumber(leftHalfPlayers[0], leftInitialTeam, leftPrefix)}
+                      {getPlayerNumber(
+                        leftHalfPlayers[0],
+                        leftInitialTeam,
+                        leftPrefix,
+                      )}
                     </Text>
                     {leftHalfPlayers[0] === currentServerName && (
-                      <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">SVC</Text>
+                      <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">
+                        SVC
+                      </Text>
                     )}
                     {leftHalfPlayers[0] === currentReceiverName && (
-                      <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">RCV</Text>
+                      <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">
+                        RCV
+                      </Text>
                     )}
                   </View>
                   {leftHalfPlayers[0] === currentServerName && (
@@ -476,16 +537,31 @@ export default function ScoreScreen() {
                 <View className="items-center justify-center relative w-12 h-12">
                   <View
                     className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${rightColor}`}
-                    style={rightHalfPlayers[0] === currentServerName ? { transform: [{ scale: 1.1 }], borderColor: "#facc15" } : undefined}
+                    style={
+                      rightHalfPlayers[0] === currentServerName
+                        ? {
+                            transform: [{ scale: 1.1 }],
+                            borderColor: "#facc15",
+                          }
+                        : undefined
+                    }
                   >
                     <Text className="text-white text-xs font-black leading-none">
-                      {getPlayerNumber(rightHalfPlayers[0], rightInitialTeam, rightPrefix)}
+                      {getPlayerNumber(
+                        rightHalfPlayers[0],
+                        rightInitialTeam,
+                        rightPrefix,
+                      )}
                     </Text>
                     {rightHalfPlayers[0] === currentServerName && (
-                      <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">SVC</Text>
+                      <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">
+                        SVC
+                      </Text>
                     )}
                     {rightHalfPlayers[0] === currentReceiverName && (
-                      <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">RCV</Text>
+                      <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">
+                        RCV
+                      </Text>
                     )}
                   </View>
                   {rightHalfPlayers[0] === currentServerName && (
@@ -499,16 +575,31 @@ export default function ScoreScreen() {
                   <View className="items-center justify-center relative w-12 h-12">
                     <View
                       className={`w-10 h-10 rounded-full items-center justify-center border-2 border-white ${rightColor}`}
-                      style={rightHalfPlayers[1] === currentServerName ? { transform: [{ scale: 1.1 }], borderColor: "#facc15" } : undefined}
+                      style={
+                        rightHalfPlayers[1] === currentServerName
+                          ? {
+                              transform: [{ scale: 1.1 }],
+                              borderColor: "#facc15",
+                            }
+                          : undefined
+                      }
                     >
                       <Text className="text-white text-xs font-black leading-none">
-                        {getPlayerNumber(rightHalfPlayers[1], rightInitialTeam, rightPrefix)}
+                        {getPlayerNumber(
+                          rightHalfPlayers[1],
+                          rightInitialTeam,
+                          rightPrefix,
+                        )}
                       </Text>
                       {rightHalfPlayers[1] === currentServerName && (
-                        <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">SVC</Text>
+                        <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">
+                          SVC
+                        </Text>
                       )}
                       {rightHalfPlayers[1] === currentReceiverName && (
-                        <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">RCV</Text>
+                        <Text className="text-white text-[7px] font-black leading-none mt-0.5 uppercase">
+                          RCV
+                        </Text>
                       )}
                     </View>
                     {rightHalfPlayers[1] === currentServerName && (
@@ -546,7 +637,9 @@ export default function ScoreScreen() {
               <View className="flex-1 items-center">
                 <View className="bg-[#C1121F]/10 px-3.5 py-1 rounded-full mb-3">
                   <Text className="text-[10px] font-extrabold text-[#C1121F] uppercase tracking-wide">
-                    {matchMode === "doubles" ? "Team A" : teamAPlayers[0] || "Team A"}
+                    {matchMode === "doubles"
+                      ? "Team A"
+                      : teamAPlayers[0] || "Team A"}
                   </Text>
                 </View>
                 <Pressable
@@ -554,7 +647,9 @@ export default function ScoreScreen() {
                   disabled={isCourtEmpty}
                   className={`bg-[#C1121F] border border-[#C1121F] rounded-[32px] w-full aspect-[1/1] items-center justify-center active:scale-95 transition-transform ${isCourtEmpty ? "opacity-40" : ""}`}
                 >
-                  <Text className="text-7xl font-black text-white">{scoreA}</Text>
+                  <Text className="text-7xl font-black text-white">
+                    {scoreA}
+                  </Text>
                   <Text className="text-[9px] font-extrabold text-white/70 uppercase tracking-widest mt-2">
                     {isCourtEmpty ? "No players" : "Tap to score"}
                   </Text>
@@ -571,14 +666,18 @@ export default function ScoreScreen() {
               </View>
 
               <View className="px-1 items-center justify-center">
-                <Text className="text-xl font-black text-muted-foreground opacity-30">VS</Text>
+                <Text className="text-xl font-black text-muted-foreground opacity-30">
+                  VS
+                </Text>
               </View>
 
               {/* Team B */}
               <View className="flex-1 items-center">
                 <View className="bg-[#1E3A8A]/10 px-3.5 py-1 rounded-full mb-3">
                   <Text className="text-[10px] font-extrabold text-[#1E3A8A] uppercase tracking-wide">
-                    {matchMode === "doubles" ? "Team B" : teamBPlayers[0] || "Team B"}
+                    {matchMode === "doubles"
+                      ? "Team B"
+                      : teamBPlayers[0] || "Team B"}
                   </Text>
                 </View>
                 <Pressable
@@ -586,7 +685,9 @@ export default function ScoreScreen() {
                   disabled={isCourtEmpty}
                   className={`bg-[#1E3A8A] border border-[#1E3A8A] rounded-[32px] w-full aspect-[1/1] items-center justify-center active:scale-95 transition-transform ${isCourtEmpty ? "opacity-40" : ""}`}
                 >
-                  <Text className="text-7xl font-black text-white">{scoreB}</Text>
+                  <Text className="text-7xl font-black text-white">
+                    {scoreB}
+                  </Text>
                   <Text className="text-[9px] font-extrabold text-white/70 uppercase tracking-widest mt-2">
                     {isCourtEmpty ? "No players" : "Tap to score"}
                   </Text>
@@ -610,7 +711,11 @@ export default function ScoreScreen() {
                 disabled={isCourtEmpty}
                 className={`flex-row items-center bg-background px-5 py-2.5 rounded-full border border-border gap-2 ${isCourtEmpty ? "opacity-40" : "active:opacity-70"}`}
               >
-                {isPaused ? <Play size={12} color={theme.foreground} /> : <Pause size={12} color={theme.foreground} />}
+                {isPaused ? (
+                  <Play size={12} color={theme.foreground} />
+                ) : (
+                  <Pause size={12} color={theme.foreground} />
+                )}
                 <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
                   {isPaused ? "Resume" : "Pause"}
                 </Text>
@@ -622,7 +727,9 @@ export default function ScoreScreen() {
                 className={`flex-row items-center bg-background px-5 py-2.5 rounded-full border border-border gap-2 ${history.length === 0 ? "opacity-40" : "active:opacity-70"}`}
               >
                 <Undo2 size={12} color={theme.foreground} />
-                <Text className="text-xs font-bold text-foreground uppercase tracking-wider">Undo</Text>
+                <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  Undo
+                </Text>
               </Pressable>
 
               <Pressable
@@ -631,7 +738,9 @@ export default function ScoreScreen() {
                 className={`flex-row items-center bg-background px-5 py-2.5 rounded-full border border-border gap-2 ${isCourtEmpty ? "opacity-40" : "active:opacity-70"}`}
               >
                 <RotateCcw size={12} color={theme.foreground} />
-                <Text className="text-xs font-bold text-foreground uppercase tracking-wider">Reset</Text>
+                <Text className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  Reset
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -661,10 +770,15 @@ export default function ScoreScreen() {
                   </Pressable>
                 ))}
                 <Pressable
-                  onPress={() => { if (matchStarted) return; setShowCustomInput((v) => !v); }}
+                  onPress={() => {
+                    if (matchStarted) return;
+                    setShowCustomInput((v) => !v);
+                  }}
                   className={`px-4 py-2 rounded-full border ${isCustomSelected ? "bg-[#C1121F] border-[#C1121F]" : "bg-background border-black/10"} ${matchStarted ? "opacity-50" : "active:opacity-70"}`}
                 >
-                  <Text className={`text-xs font-extrabold ${isCustomSelected ? "text-white" : "text-foreground"}`}>
+                  <Text
+                    className={`text-xs font-extrabold ${isCustomSelected ? "text-white" : "text-foreground"}`}
+                  >
                     {isCustomSelected ? winTarget : "Custom"}
                   </Text>
                 </Pressable>
@@ -680,10 +794,16 @@ export default function ScoreScreen() {
                     onChangeText={setCustomTarget}
                     keyboardType="numeric"
                     returnKeyType="done"
+                    autoCapitalize="words"
                     onSubmitEditing={handleCustomConfirm}
                   />
-                  <Pressable onPress={handleCustomConfirm} className="bg-primary px-4 py-2.5 rounded-2xl active:opacity-70">
-                    <Text className="text-white text-xs font-extrabold">Set</Text>
+                  <Pressable
+                    onPress={handleCustomConfirm}
+                    className="bg-primary px-4 py-2.5 rounded-2xl active:opacity-70"
+                  >
+                    <Text className="text-white text-xs font-extrabold">
+                      Set
+                    </Text>
                   </Pressable>
                 </View>
               )}
@@ -691,14 +811,18 @@ export default function ScoreScreen() {
 
             <View className="flex-row justify-between items-center pt-3 border-t border-border">
               <View className="flex-1 pr-4">
-                <Text className="text-xs font-extrabold text-foreground">Win by 2</Text>
+                <Text className="text-xs font-extrabold text-foreground">
+                  Win by 2
+                </Text>
                 <Text className="text-[10px] text-muted-foreground font-medium mt-0.5">
                   Must lead by 2 points at target score
                 </Text>
               </View>
               <Switch
                 value={winBy2}
-                onValueChange={(v) => { if (!matchStarted) setWinBy2(v); }}
+                onValueChange={(v) => {
+                  if (!matchStarted) setWinBy2(v);
+                }}
                 disabled={matchStarted}
                 trackColor={{ false: theme.grey5, true: theme.primary }}
                 thumbColor="#fff"
@@ -708,14 +832,18 @@ export default function ScoreScreen() {
             <View className="flex-row items-center gap-1.5 -mt-1">
               <Info size={11} color={theme.textSecondary} />
               <Text className="text-[10px] text-muted-foreground font-semibold">
-                {winBy2 ? `First to ${winTarget}, win by 2 (cap ${winTarget + 9})` : `First to ${winTarget} wins`}
+                {winBy2
+                  ? `First to ${winTarget}, win by 2 (cap ${winTarget + 9})`
+                  : `First to ${winTarget} wins`}
               </Text>
             </View>
           </View>
 
           {/* Recent Plays */}
           <View className="gap-3">
-            <Text className="text-lg font-extrabold text-foreground">Recent Plays</Text>
+            <Text className="text-lg font-extrabold text-foreground">
+              Recent Plays
+            </Text>
             {recentPlays.length === 0 ? (
               <View className="bg-secondary/40 p-6 rounded-3xl border border-dashed border-border items-center justify-center">
                 <Text className="text-xs text-muted-foreground">
@@ -736,13 +864,17 @@ export default function ScoreScreen() {
                         <Activity size={14} color="#C1121F" />
                       </View>
                       <View>
-                        <Text className="text-xs font-bold text-foreground">{play.player}</Text>
+                        <Text className="text-xs font-bold text-foreground">
+                          {play.player}
+                        </Text>
                         <Text className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                           {play.action}
                         </Text>
                       </View>
                     </View>
-                    <Text className="text-xs font-black text-[#C1121F]">{play.points}</Text>
+                    <Text className="text-xs font-black text-[#C1121F]">
+                      {play.points}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -762,13 +894,23 @@ export default function ScoreScreen() {
               <Text className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-widest">
                 Match Over
               </Text>
-              <Text className="text-2xl font-black text-foreground text-center">{winningTeamName}</Text>
-              <Text className="text-xs font-semibold text-muted-foreground">Wins!</Text>
+              <Text className="text-2xl font-black text-foreground text-center">
+                {winningTeamName}
+              </Text>
+              <Text className="text-xs font-semibold text-muted-foreground">
+                Wins!
+              </Text>
             </View>
             <View className="bg-secondary rounded-2xl px-8 py-3 flex-row gap-4 items-center">
-              <Text className="text-3xl font-black text-[#C1121F]">{scoreA}</Text>
-              <Text className="text-lg font-black text-muted-foreground opacity-40">–</Text>
-              <Text className="text-3xl font-black text-foreground">{scoreB}</Text>
+              <Text className="text-3xl font-black text-[#C1121F]">
+                {scoreA}
+              </Text>
+              <Text className="text-lg font-black text-muted-foreground opacity-40">
+                –
+              </Text>
+              <Text className="text-3xl font-black text-foreground">
+                {scoreB}
+              </Text>
             </View>
             <View className="w-full gap-3">
               <Pressable
@@ -788,7 +930,9 @@ export default function ScoreScreen() {
                 onPress={handleReset}
                 className="bg-secondary py-3.5 rounded-full items-center justify-center border border-border active:opacity-70"
               >
-                <Text className="text-foreground text-sm font-extrabold uppercase tracking-widest">Discard</Text>
+                <Text className="text-foreground text-sm font-extrabold uppercase tracking-widest">
+                  Discard
+                </Text>
               </Pressable>
             </View>
           </View>

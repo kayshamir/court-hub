@@ -1,6 +1,6 @@
 import * as schema from "@/db/schema";
 import { courts, matches, players, DBPlayer, matchups, DBMatchup } from "@/db/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/expo-sqlite";
 import { SkillLevel } from "@/types/player";
 import * as SQLite from "expo-sqlite";
@@ -132,6 +132,15 @@ export async function getRecentMatches(limit = 20) {
 
 // Courts
 
+const courtListeners = new Set<() => void>();
+export function subscribeToCourtChanged(listener: () => void) {
+  courtListeners.add(listener);
+  return () => courtListeners.delete(listener);
+}
+function notifyCourtChanged() {
+  courtListeners.forEach((l) => l());
+}
+
 export async function getCourts() {
   return db
     .select()
@@ -151,10 +160,12 @@ export async function addCourt(
     status: "available",
     createdAt: new Date().toISOString(),
   });
+  notifyCourtChanged();
 }
 
 export async function deleteCourt(id: number) {
   await db.delete(courts).where(eq(courts.id, id));
+  notifyCourtChanged();
 }
 
 // Matchups / Queue
@@ -215,6 +226,16 @@ export async function updateMatchupStatus(
 
 export async function deleteMatchupById(id: number) {
   await db.delete(matchups).where(eq(matchups.id, id));
+}
+
+export async function finishMatchupsByIds(ids: number[]) {
+  if (ids.length === 0) return;
+  await db.update(matchups).set({ status: "finished", courtId: null }).where(inArray(matchups.id, ids));
+}
+
+export async function deleteMatchupsByIds(ids: number[]) {
+  if (ids.length === 0) return;
+  await db.delete(matchups).where(inArray(matchups.id, ids));
 }
 
 export async function getActiveMatchupForCourt(courtId: number) {
