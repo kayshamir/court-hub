@@ -4,6 +4,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { getActiveMatchupForCourt } from "@/services/database";
 import { saveMatchResult } from "@/services/match-service";
 import { rotateCourt } from "@/services/queue-service";
+import { scoreStore } from "@/services/score-store";
 import { SportType } from "@/types/court";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -111,6 +112,25 @@ export default function ScoreScreen() {
   const courtId = params.courtId ? parseInt(params.courtId as string, 10) : 1;
 
   const loadMatchup = React.useCallback(async () => {
+    const saved = scoreStore.get(courtId);
+    if (saved) {
+      setScoreA(saved.scoreA);
+      setScoreB(saved.scoreB);
+      setServingTeam(saved.servingTeam);
+      setTeamAPlayers(saved.teamAPlayers);
+      setTeamBPlayers(saved.teamBPlayers);
+      setInitialTeamA(saved.initialTeamA);
+      setInitialTeamB(saved.initialTeamB);
+      setWinTarget(saved.winTarget);
+      setWinBy2(saved.winBy2);
+      setIsPaused(saved.isPaused);
+      setWinner(saved.winner);
+      setHistory(saved.history);
+      setRecentPlays(saved.recentPlays);
+      setMatchMode(saved.teamAPlayers.length > 1 ? "doubles" : "singles");
+      setIsMatchLoading(false);
+      return;
+    }
     try {
       const matchup = await getActiveMatchupForCourt(courtId);
       if (matchup) {
@@ -142,6 +162,26 @@ export default function ScoreScreen() {
 
   const [servingTeam, setServingTeam] = React.useState<"A" | "B">("A");
   const [history, setHistory] = React.useState<MatchState[]>([]);
+
+  // Persist live score so it survives navigation away and back
+  React.useEffect(() => {
+    if (isMatchLoading || teamAPlayers.length === 0) return;
+    scoreStore.set(courtId, {
+      scoreA,
+      scoreB,
+      servingTeam,
+      teamAPlayers,
+      teamBPlayers,
+      initialTeamA,
+      initialTeamB,
+      winTarget,
+      winBy2,
+      isPaused,
+      winner,
+      history,
+      recentPlays,
+    });
+  }, [scoreA, scoreB, servingTeam, teamAPlayers, teamBPlayers, initialTeamA, initialTeamB, winTarget, winBy2, isPaused, winner, history, recentPlays, isMatchLoading, courtId]);
 
   const hasPlayers = teamAPlayers.length > 0;
   // Only show disabled state after we've confirmed the court is empty (not during load)
@@ -299,6 +339,7 @@ export default function ScoreScreen() {
   };
 
   const handleReset = () => {
+    scoreStore.delete(courtId);
     setScoreA(0);
     setScoreB(0);
     setTeamAPlayers(initialTeamA);
@@ -321,6 +362,7 @@ export default function ScoreScreen() {
           params.matchType ?? "doubles",
         );
       }
+      scoreStore.delete(courtId);
       setWinner(null);
       router.back();
     } catch (e) {

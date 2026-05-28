@@ -52,11 +52,30 @@ export function buildBalancedPool(
 
   // Step 2: Form teams
   let teams: Player[][] = [];
-  
+
   if (pairingMode === "same_level") {
-    for (let i = 0; i + playersPerTeam - 1 < sorted.length; i += playersPerTeam) {
-      teams.push(sorted.slice(i, i + playersPerTeam));
+    // Group by level, pair only within each level group
+    const levelGroups = new Map<string, Player[]>();
+    for (const p of sorted) {
+      const group = levelGroups.get(p.level) ?? [];
+      group.push(p);
+      levelGroups.set(p.level, group);
     }
+    const matchups: Matchup[] = [];
+    for (const group of levelGroups.values()) {
+      const groupTeams: Player[][] = [];
+      for (let i = 0; i + playersPerTeam - 1 < group.length; i += playersPerTeam) {
+        groupTeams.push(group.slice(i, i + playersPerTeam));
+      }
+      for (let i = 0; i + 1 < groupTeams.length; i += 2) {
+        matchups.push({
+          id: Math.random().toString(36).substring(7),
+          teamA: groupTeams[i],
+          teamB: groupTeams[i + 1],
+        });
+      }
+    }
+    return matchups;
   } else if (pairingMode === "balanced_mix" && isDoubles) {
     const copy = [...sorted];
     while (copy.length >= 2) {
